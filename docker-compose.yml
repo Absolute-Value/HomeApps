@@ -1,0 +1,10 @@
+services:
+  expenses-app:
+    build: .
+    ports:
+      - "8504:8504"
+    env_file:
+      - .env
+    volumes:
+      - ./data/:/data/
+    restart: unless-stopped
