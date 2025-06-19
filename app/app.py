@@ -7,5 +7,5 @@ st.set_page_config(
 )
 
 st.title("家計簿アプリ")
-st.page_link("pages/register.py", label="登録ページ", icon="📝")
+st.page_link("pages/upload.py", label="登録ページ", icon="📝")
 st.page_link("pages/summary.py", label="集計ページ", icon="📊")
