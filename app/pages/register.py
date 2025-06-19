@@ -84,17 +84,22 @@ def main():
         
         st.success("OCRの結果を取得しました")
         invoice = result.documents[0].fields
+
+        database_keys = [
+            "店名", "店の受取人", "店の住所", "請求日", "請求書番号","小計", "税金", "合計"
+        ]
+        database = {key: "" for key in database_keys}
         for k, v in invoice.items():
             if k == "VendorName":
-                st.text_input("店名", v.get("content", ""), key="VendorName")
+                database["店名"] = v.get("content", "")
             elif k == "VendorAddress":
-                st.text_area("店の住所", v.get("content", ""), key="VendorAddress")
+                database["店の住所"] = v.get("content", "")
             elif k == "VendorAddressRecipient":
-                st.text_input("店の受取人", v.get("content", ""), key="VendorAddressRecipient")
+                database["店の受取人"] = v.get("content", "")
             elif k == "InvoiceDate":
-                st.date_input("請求日", v.get("valueDate", ""), key="InvoiceDate")
+                database["請求日"] = v.get("valueDate", "")
             elif k == "InvoiceId":
-                st.text_input("請求書番号", v.get("content", ""), key="InvoiceId")
+                database["請求書番号"] = v.get("content", "")
             elif k == "Items":
                 items = v.get("valueArray", [])
                 rows = []
@@ -112,20 +117,20 @@ def main():
                 st.write(f"品目の合計金額: {edited_df['金額'].apply(pd.to_numeric, errors='coerce').sum()}")
             elif k == "SubTotal":
                 data = v.get("valueCurrency", {})
-                st.number_input("小計", int(data.get("amount", "")), key="SubTotal")
-                st.write(data.get("currencyCode", ""))
+                database["小計"] = int(data.get("amount", ""))
+                # st.write(data.get("currencyCode", ""))
             elif k == "TotalTax":
                 data = v.get("valueCurrency", {})
-                st.number_input("税金", int(data.get("amount", "")), key="TotalTax")
-                st.write(data.get("currencyCode", ""))
+                database["税金"] = int(data.get("amount", ""))
+                # st.write(data.get("currencyCode", ""))
             elif k == "InvoiceTotal":
                 data = v.get("valueCurrency")
-                st.number_input("合計", int(data.get("amount", "")), key="InvoiceTotal")
-                st.write(data.get("currencyCode", ""))
+                database["合計"] = int(data.get("amount", ""))
+                # st.write(data.get("currencyCode", ""))
             else:
                 st.write(f"{k}: {v}")
 
-        st.write(invoice.get("VendorName"))
-        
+        st.table(pd.DataFrame([database]))
+
 if __name__ == "__main__":
     main()
