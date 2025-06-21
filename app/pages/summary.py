@@ -30,6 +30,8 @@ def main():
         image_path = os.path.join(IMAGES_DIR, image_name)
         if os.path.exists(image_path):
             st.image(image_path)
+        else:
+            st.warning(f"画像は削除されています: {image_name}")
 
 if __name__ == "__main__":
     main()
