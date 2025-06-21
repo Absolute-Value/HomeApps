@@ -14,7 +14,6 @@ os.makedirs(DONE_FOLDER, exist_ok=True)
 DB_PATH = "/data/expenses.db"
 
 def initialize_database():
-    """SQLiteデータベースを初期化"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
@@ -28,7 +27,18 @@ def initialize_database():
             品目の合計金額 REAL,
             小計 REAL,
             税金 REAL,
-            合計 REAL
+            合計 REAL,
+            画像名 TEXT
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            invoice_id INTEGER,
+            品名 TEXT,
+            金額 REAL,
+            単位 TEXT,
+            FOREIGN KEY(invoice_id) REFERENCES invoices(id)
         )
     """)
     conn.commit()
@@ -89,17 +99,17 @@ def main():
                         database["請求書番号"] = v.get("content", "")
                     elif k == "Items":
                         items = v.get("valueArray", [])
-                        rows = []
+                        items_rows = []
                         for idx, item in enumerate(items):
                             # 各アイテムの内容を個別に表示
                             desc = item.get("valueObject", {}).get("Description", {}).get("content", "")
                             amount_data = item.get("valueObject", {}).get("Amount", {}).get("valueCurrency", {})
-                            rows.append({
+                            items_rows.append({
                                 "品名": desc,
                                 "金額": amount_data.get("amount", ""),
                                 "単位": amount_data.get("currencyCode", "")
                             })
-                        df = pd.DataFrame(rows)
+                        df = pd.DataFrame(items_rows)
                         df.to_csv(f"{os.path.splitext(image_name)[0]}.csv", index=False)
                         database["品目の合計金額"] = df['金額'].apply(pd.to_numeric, errors='coerce').sum()
                     elif k == "SubTotal":
@@ -117,8 +127,8 @@ def main():
                 conn = sqlite3.connect(DB_PATH)
                 cursor = conn.cursor()
                 cursor.execute("""
-                    INSERT INTO invoices (店名, 店の受取人, 店の住所, 請求日, 請求書番号, 品目の合計金額, 小計, 税金, 合計)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO invoices (店名, 店の受取人, 店の住所, 請求日, 請求書番号, 品目の合計金額, 小計, 税金, 合計, 画像名)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     database["店名"],
                     database["店の受取人"],
@@ -128,8 +138,23 @@ def main():
                     database["品目の合計金額"],
                     database["小計"],
                     database["税金"],
-                    database["合計"]
+                    database["合計"],
+                    image_name
                 ))
+                invoice_id = cursor.lastrowid  # 追加した請求書のIDを取得
+
+                # itemsテーブルに品目を挿入
+                for row in items_rows:
+                    cursor.execute("""
+                        INSERT INTO items (invoice_id, 品名, 金額, 単位)
+                        VALUES (?, ?, ?, ?)
+                    """, (
+                        invoice_id,
+                        row.get("品名", ""),
+                        row.get("金額", ""),
+                        row.get("単位", "")
+                    ))
+
                 conn.commit()
                 conn.close()
 
