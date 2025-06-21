@@ -3,7 +3,7 @@ import uuid
 import streamlit as st
 from PIL import Image
 
-IMAGES_DIR = "images"
+IMAGES_DIR = "/data/images"
 os.makedirs(IMAGES_DIR, exist_ok=True)
 
 def main():

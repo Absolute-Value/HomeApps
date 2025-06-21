@@ -5,5 +5,7 @@ COPY app/pyproject.toml app/uv.lock /app/
 RUN uv sync
 
 COPY app/ /app
-EXPOSE 8501
-CMD ["uv", "run", "streamlit", "run", "app.py", "--server.port=8504", "--server.address=0.0.0.0"]
+EXPOSE 8504
+
+RUN chmod +x start.sh
+CMD ["sh", "start.sh"]
