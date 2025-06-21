@@ -110,7 +110,6 @@ def main():
                                 "単位": amount_data.get("currencyCode", "")
                             })
                         df = pd.DataFrame(items_rows)
-                        df.to_csv(f"{os.path.splitext(image_name)[0]}.csv", index=False)
                         database["品目の合計金額"] = df['金額'].apply(pd.to_numeric, errors='coerce').sum()
                     elif k == "SubTotal":
                         data = v.get("valueCurrency", {})
