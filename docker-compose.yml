@@ -7,4 +7,5 @@ services:
       - .env
     volumes:
       - ./data/:/data/
+      - ./app/:/app/
     restart: unless-stopped
