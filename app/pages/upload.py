@@ -6,6 +6,12 @@ from PIL import Image
 IMAGES_DIR = "/data/images"
 os.makedirs(IMAGES_DIR, exist_ok=True)
 
+st.set_page_config(
+    page_title="レシート登録ページ",
+    page_icon="📷",
+    layout="wide",
+)
+
 def main():
     if "file_uploader_key" not in st.session_state:
         st.session_state["file_uploader_key"] = 0
@@ -32,7 +38,7 @@ def main():
             image.thumbnail((max_width, max_height))
         filename = f"{uuid.uuid4()}.jpg"
         save_path = os.path.join(IMAGES_DIR, filename)
-        
+
         col1, col2 = st.columns(2)
         with col1:
             if st.button("左回転"):
