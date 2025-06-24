@@ -132,6 +132,15 @@ def main():
                     conn.commit()
                     conn.close()
                     st.rerun()
+            with st.popover("このレシートを削除"):
+                st.write("本当にこのレシートを削除しますか？")
+                if st.button("削除"):
+                    conn = sqlite3.connect(DB_PATH)
+                    conn.execute("DELETE FROM invoices WHERE id = ?", (selected_id,))
+                    conn.execute("DELETE FROM items WHERE invoice_id = ?", (selected_id,))
+                    conn.commit()
+                    conn.close()
+                    st.rerun()
 
 if __name__ == "__main__":
     main()
