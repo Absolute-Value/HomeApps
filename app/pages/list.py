@@ -21,10 +21,12 @@ def main():
 
     if os.path.exists(DB_PATH):
         conn = sqlite3.connect(DB_PATH)
-        invoice_df = pd.read_sql_query("SELECT * FROM invoices", conn)
-        st.dataframe(
+        invoice_df = pd.read_sql_query("SELECT * FROM invoices ORDER BY id DESC", conn)
+        d = st.dataframe(
             invoice_df,
             hide_index=True,
+            selection_mode="single-row",
+            on_select="rerun",
             column_config={
                 "品目の合計金額": st.column_config.NumberColumn(),
                 "小計": st.column_config.NumberColumn(),
@@ -38,9 +40,8 @@ def main():
         )
         conn.close()
 
-        selected_id = st.selectbox("IDを選択してください", invoice_df["id"], index=None, placeholder="IDを選択")
-        
-        if selected_id:
+        if d.selection.rows:
+            selected_id = int(invoice_df.iloc[d.selection.rows[0]].id)
             invoice_selected = invoice_df[invoice_df["id"] == selected_id].copy()
             if "請求日" in invoice_selected.columns:
                 invoice_selected["請求日"] = pd.to_datetime(invoice_selected["請求日"], errors="coerce")
