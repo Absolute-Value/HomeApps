@@ -18,32 +18,23 @@ def main():
         conn = sqlite3.connect(DB_PATH)
         invoice_df = pd.read_sql_query("SELECT * FROM invoices", conn)
         conn.close()
-
-        # 店名ごとに合計金額を集計
-        if '店名' in invoice_df.columns and '合計' in invoice_df.columns:
-            store_summary = invoice_df.groupby('店名')['合計'].sum().reset_index()
-            store_summary = store_summary.sort_values('合計', ascending=False)
-            st.subheader("店名ごとの合計金額")
-            st.dataframe(store_summary, hide_index=True)
         
-        # 年ごとの合計金額を集計し、年を選択して棒グラフを表示
+        # 年月（YY/MM）ごとの合計金額を集計し、棒グラフを表示
         if '請求日' in invoice_df.columns and '合計' in invoice_df.columns:
-            invoice_df['年'] = pd.to_datetime(invoice_df['請求日']).dt.year
-            year_summary = invoice_df.groupby('年')['合計'].sum().reset_index()
-            year_summary = year_summary.sort_values('合計', ascending=False)
+            invoice_df['年月'] = pd.to_datetime(invoice_df['請求日']).dt.strftime('%y/%m')
+            ym_summary = invoice_df.groupby('年月')['合計'].sum().reset_index()
+            ym_summary = ym_summary.sort_values('年月')
 
-            # 年を選択
-            years = sorted(invoice_df['年'].unique())
-            selected_year = st.selectbox("年を選択してください", years)
+            st.subheader("年月（YY/MM）ごとの合計金額（棒グラフ）")
+            st.line_chart(ym_summary.set_index('年月'))
+            selected_ym = st.selectbox("年月を選択してください", ym_summary['年月'][::-1])
 
-            # 選択した年の月ごとの合計金額を集計
-            df_selected = invoice_df[invoice_df['年'] == selected_year].copy()
-            df_selected['月'] = pd.to_datetime(df_selected['請求日']).dt.month
-            month_summary = df_selected.groupby('月')['合計'].sum().reset_index()
-            month_summary = month_summary.sort_values('月')
-
-            st.subheader(f"{selected_year}年の月ごとの合計金額（棒グラフ）")
-            st.bar_chart(month_summary.set_index('月'))
+            if selected_ym:
+                filtered_df = invoice_df[invoice_df['年月'] == selected_ym]
+                if '店名' in filtered_df.columns and '合計' in filtered_df.columns:
+                    shop_summary = filtered_df.groupby('店名')['合計'].sum().reset_index()
+                    shop_summary = shop_summary.sort_values('合計', ascending=False)
+                    st.dataframe(shop_summary, hide_index=True)
 
 if __name__ == "__main__":
     main()
