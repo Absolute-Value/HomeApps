@@ -3,7 +3,7 @@ import uuid
 import streamlit as st
 from PIL import Image
 
-IMAGES_DIR = "/data/images"
+IMAGES_DIR = "/data/wait"
 os.makedirs(IMAGES_DIR, exist_ok=True)
 
 st.set_page_config(

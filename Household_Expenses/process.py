@@ -6,7 +6,7 @@ from azure.core.credentials import AzureKeyCredential
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
 
-IMAGE_FOLDER = "/data/images"
+IMAGE_FOLDER = "/data/wait"
 DONE_FOLDER = "/data/done"
 os.makedirs(IMAGE_FOLDER, exist_ok=True)
 os.makedirs(DONE_FOLDER, exist_ok=True)
