@@ -45,6 +45,13 @@ sudo docker compose restart nginx
 sudo docker compose up -d
 ```
 
+### 証明書の更新（90日ごと推奨）
+Let's Encryptの証明書は有効期限が90日なので、更新が必要です。
+
+```bash
+sudo docker compose run --rm certbot renew
+sudo docker compose exec nginx nginx -s reload
+```
 
 ### 開発用
 ```bash
