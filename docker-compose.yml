@@ -1,12 +1,52 @@
 services:
+  openai-chat:
+    container_name: openai-chat
+    build: ./ChatAPI
+    expose:
+      - "8501"
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    volumes:
+      - ./data/:/data/
+      - ./ChatAPI/:/app/
+    working_dir: /app
+    restart: unless-stopped
+
   expenses-app:
-    build: .
+    container_name: expenses-app
+    build: ./Household_Expenses
+    expose:
+      - "8504"
     ports:
       - "8504:8504"
     env_file:
       - .env
     volumes:
       - ./data/:/data/
-      - ./app/:/app/
+      - ./Household_Expenses/:/app/
     working_dir: /app
     restart: unless-stopped
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx_proxy
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - openai-chat
+      - expenses-app
+    restart: always
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot

@@ -1,13 +1,50 @@
-# 家計簿アプリ
+# チャットボット+家計簿アプリ
 
 ## How To Use
 
 ### dockerを導入済みの場合
 
-docker composeを使用してコンテナを起動
+.envファイルにOPENAI_API_KEYとOPENAI_API_VERSIONを設定
 ```bash
-docker compose up -d
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_API_VERSION=2025-01-01-preview
 ```
+
+1. 初回ビルド（イメージ作成）
+```bash
+sudo docker compose build
+```
+
+2. 初回のみ：Let's Encryptの証明書取得（HTTP経由）
+以下のサーバーをコメントアウト
+```
+#  server {
+#    listen 443 ssl;
+```
+
+nginxを再起動
+```shell
+sudo docker compose restart nginx
+```
+
+```bash
+sudo docker compose run --rm certbot certonly \
+  --webroot --webroot-path=/var/www/certbot \
+  --email clcl@f5.si \
+  --agree-tos --no-eff-email \
+  -d jky-home.ddns.net
+```
+
+コメントアウトを戻して、nginxを再起動
+```shell
+sudo docker compose restart nginx
+```
+
+3. コンテナの起動（HTTPSでStreamlitを公開）
+```bash
+sudo docker compose up -d
+```
+
 
 ### 開発用
 ```bash
