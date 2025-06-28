@@ -107,6 +107,8 @@ with st.sidebar:
         "GPT-4.1-nano": "gpt-4.1-nano",
         "GPT-4.1-mini": "gpt-4.1-mini",
         "GPT-4.1": "gpt-4.1",
+        "GPT-4o-mini-search": "gpt-4o-mini-search-preview",
+        "GPT-4o-search": "gpt-4o-search-preview"
     }
     selected_label = st.selectbox("使用モデル", list(model_options.keys()))
     st.session_state["openai_model"] = model_options[selected_label]
@@ -204,8 +206,15 @@ if chat_id:
                         {"type": "text", "text": m["content"]},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
                     ]
+            if "-search-preview" in st.session_state["openai_model"]:
+                web_search_options = {
+                    "search_context_size": "medium",
+                }
+            else:
+                web_search_options = None
             stream = client.chat.completions.create(
                 model=st.session_state["openai_model"],
+                web_search_options=web_search_options,
                 messages=messages,
                 stream=True,
             )
