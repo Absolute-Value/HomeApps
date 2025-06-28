@@ -54,7 +54,6 @@ if "new_chat" not in st.session_state:
     st.session_state.new_chat = False  # TrueならまだDB未保存の新規チャット
 
 def load_chats():
-    # deleted = 0 のチャットのみ表示
     c.execute("SELECT id, title FROM chats WHERE deleted = 0 ORDER BY created_at DESC")
     return c.fetchall()
 
@@ -76,7 +75,6 @@ def update_chat_title(chat_id, new_title):
     conn.commit()
 
 def delete_chat(chat_id):
-    # 論理削除: deletedフラグを1に更新
     c.execute("UPDATE chats SET deleted = 1 WHERE id = ?", (chat_id,))
     conn.commit()
 
