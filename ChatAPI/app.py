@@ -8,4 +8,5 @@ st.set_page_config(
 
 # https://www.webfx.com/tools/emoji-cheat-sheet/
 st.title("チャットアプリ")
-st.page_link("pages/openai_chat.py", label="OpenAI", icon="📸")
+st.page_link("pages/openai_chat.py", label="OpenAI", icon="🤖")
+st.page_link("pages/gemini_chat.py", label="Gemini", icon="🤖")

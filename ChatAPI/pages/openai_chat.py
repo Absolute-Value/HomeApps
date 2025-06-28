@@ -101,7 +101,6 @@ with st.sidebar:
         st.session_state.new_chat = True
         st.rerun()
 
-    st.subheader(":gear: モデル選択")
     model_options = {
         "GPT-4.1-nano": "gpt-4.1-nano",
         "GPT-4.1-mini": "gpt-4.1-mini",
@@ -109,7 +108,7 @@ with st.sidebar:
         "GPT-4o-mini-search": "gpt-4o-mini-search-preview",
         "GPT-4o-search": "gpt-4o-search-preview"
     }
-    selected_label = st.selectbox("使用モデル", list(model_options.keys()))
+    selected_label = st.selectbox(":gear: モデル選択", list(model_options.keys()))
     st.session_state["openai_model"] = model_options[selected_label]
 
     st.subheader(":speech_balloon: チャット一覧")
