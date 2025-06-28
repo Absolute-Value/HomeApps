@@ -12,7 +12,7 @@ st.set_page_config(
 )
 
 def main():
-    st.title("集計ページ")
+    st.title("📊 集計ページ")
 
     if os.path.exists(DB_PATH):
         conn = sqlite3.connect(DB_PATH)

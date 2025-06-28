@@ -8,12 +8,12 @@ DB_PATH = "/data/expenses.db"
 
 st.set_page_config(
     page_title="一覧ページ",
-    page_icon="📃",
+    page_icon=":receipt:",
     layout="wide",
 )
 
 def main():
-    st.title("一覧ページ")
+    st.title(":receipt: 一覧ページ")
     
     st.write("ここでは、登録されたレシートの集計結果を表示します。")
     if st.button("更新"):

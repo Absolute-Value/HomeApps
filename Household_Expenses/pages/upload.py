@@ -8,7 +8,7 @@ os.makedirs(IMAGES_DIR, exist_ok=True)
 
 st.set_page_config(
     page_title="レシート登録ページ",
-    page_icon="📷",
+    page_icon="📸",
     layout="wide",
 )
 
@@ -17,7 +17,7 @@ def main():
         st.session_state["file_uploader_key"] = 0
     if "rotation_angle" not in st.session_state:
         st.session_state["rotation_angle"] = 0
-    st.title("レシート登録ページ")
+    st.title("📸 レシート登録ページ")
 
     file_count = len([f for f in os.listdir(IMAGES_DIR) if os.path.isfile(os.path.join(IMAGES_DIR, f))])
     st.metric("Wait", file_count, 0, border=True)
