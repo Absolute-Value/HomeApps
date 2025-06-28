@@ -10,6 +10,12 @@ OPENAI_API_KEY=your_openai_api_key
 OPENAI_API_VERSION=2025-01-01-preview
 ```
 
+ログイン用のユーザー名とパスワードの設定
+```
+sudo apt install apache2-utils -y
+htpasswd -c ./nginx/.htpasswd your_username
+```
+
 1. 初回ビルド（イメージ作成）
 ```bash
 sudo docker compose build
