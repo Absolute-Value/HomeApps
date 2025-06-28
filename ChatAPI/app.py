@@ -16,14 +16,13 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     layout="wide",
 )
-st.title("ChatGPT API")
+st.title("Chat API")
 
 client = OpenAI()
 
 conn = sqlite3.connect("/data/chat_history.db", check_same_thread=False)
 c = conn.cursor()
 
-# chatsテーブルに deleted カラムを追加（なければ作成）
 c.execute("""
 CREATE TABLE IF NOT EXISTS chats (
     id TEXT PRIMARY KEY,
@@ -39,6 +38,7 @@ CREATE TABLE IF NOT EXISTS messages (
     role TEXT,
     content TEXT,
     image_name TEXT,
+    model TEXT,
     FOREIGN KEY(chat_id) REFERENCES chats(id)
 )
 """)
@@ -65,10 +65,10 @@ def load_messages(chat_id):
 def create_new_chat_id():
     return str(uuid.uuid4())
 
-def save_chat_and_message(chat_id, user_message, image_name=None):
+def save_chat_and_message(chat_id, user_message, image_name=None, model=None):
     now = datetime.now().isoformat()
     c.execute("INSERT INTO chats (id, title, created_at, deleted) VALUES (?, ?, ?, 0)", (chat_id, "新しいチャット", now))
-    c.execute("INSERT INTO messages (chat_id, role, content, image_name) VALUES (?, ?, ?, ?)", (chat_id, "user", user_message, image_name))
+    c.execute("INSERT INTO messages (chat_id, role, content, image_name, model) VALUES (?, ?, ?, ?, ?)", (chat_id, "user", user_message, image_name, model))
     conn.commit()
 
 def update_chat_title(chat_id, new_title):
@@ -80,8 +80,8 @@ def delete_chat(chat_id):
     c.execute("UPDATE chats SET deleted = 1 WHERE id = ?", (chat_id,))
     conn.commit()
 
-def add_message(chat_id, role, content, image_name=None):
-    c.execute("INSERT INTO messages (chat_id, role, content, image_name) VALUES (?, ?, ?, ?)", (chat_id, role, content,image_name))
+def add_message(chat_id, role, content, image_name=None, model=None):
+    c.execute("INSERT INTO messages (chat_id, role, content, image_name, model) VALUES (?, ?, ?, ?, ?)", (chat_id, role, content, image_name, model))
     conn.commit()
 
 def generate_title(prompt):
@@ -96,7 +96,7 @@ def generate_title(prompt):
     return res.output_text.strip()
 
 with st.sidebar:
-    st.header('Ver 1.0.2')
+    st.header('Ver 1.0.3')
     if st.button(":heavy_plus_sign: 新しいチャット"):
         st.session_state.current_chat_id = create_new_chat_id()
         st.session_state.new_chat = True
@@ -108,7 +108,7 @@ with st.sidebar:
         "GPT-4.1-mini": "gpt-4.1-mini",
         "GPT-4.1": "gpt-4.1",
     }
-    selected_label = st.radio("使用モデル", list(model_options.keys()))
+    selected_label = st.selectbox("使用モデル", list(model_options.keys()))
     st.session_state["openai_model"] = model_options[selected_label]
 
     st.subheader(":speech_balloon: チャット一覧")
@@ -177,10 +177,10 @@ if chat_id:
 
         # 新規チャットか既存チャットかで保存処理を分岐
         if st.session_state.new_chat:
-            save_chat_and_message(chat_id, prompt.text, image_name)
+            save_chat_and_message(chat_id, prompt.text, image_name, st.session_state["openai_model"])
             st.session_state.new_chat = False
         else:
-            add_message(chat_id, "user", prompt.text, image_name)
+            add_message(chat_id, "user", prompt.text, image_name, st.session_state["openai_model"])
         messages.append({
             "role": "user",
             "content": prompt.text,
@@ -210,7 +210,7 @@ if chat_id:
                 stream=True,
             )
             response = st.write_stream(stream)
-        add_message(chat_id, "assistant", response)
+        add_message(chat_id, "assistant", response, model=st.session_state["openai_model"])
 
         # デフォルトタイトルなら要約して更新
         c.execute("SELECT title FROM chats WHERE id = ?", (chat_id,))
