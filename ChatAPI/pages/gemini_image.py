@@ -35,7 +35,7 @@ if "chat_id" not in st.session_state:
     st.session_state.chat_id = None
 
 def load_chat_asks():
-    c.execute("SELECT id, ask FROM chats WHERE deleted = 0 ORDER BY created_at DESC")
+    c.execute("SELECT id, ask FROM chats ORDER BY created_at DESC")
     return c.fetchall()
 
 def load_chat(chat_id):
@@ -43,7 +43,7 @@ def load_chat(chat_id):
     return c.fetchone()
 
 def delete_chat(chat_id):
-    c.execute("UPDATE chats SET deleted = 1 WHERE id = ?", (chat_id,))
+    c.execute("DELETE FROM chats WHERE id = ?", (chat_id,))
     conn.commit()
 
 with st.sidebar:
