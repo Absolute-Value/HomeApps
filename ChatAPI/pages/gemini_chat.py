@@ -1,96 +1,16 @@
+import uuid
 import sqlite3
 import streamlit as st
 from google import genai
 from google.genai import types
-import uuid
+from datetime import datetime
 
-# --- 設定 ---
 DATABASE_NAME = "/data/gemini_history.db"
 MODEL_OPTIONS = {
     "Gemini-2.5-Flash-Lite": "gemini-2.5-flash-lite-preview-06-17",
     "Gemini-2.5-Flash": "gemini-2.5-flash",
 }
 
-# --- DB接続 ---
-def get_db_connection():
-    conn = sqlite3.connect(DATABASE_NAME)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-# --- テーブル作成 ---
-def create_tables():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS chats (
-            chat_id TEXT PRIMARY KEY,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS messages (
-            message_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chat_id TEXT NOT NULL,
-            role TEXT NOT NULL,
-            content TEXT NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (chat_id) REFERENCES chats (chat_id)
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-# --- チャット操作 ---
-def create_new_chat():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    new_chat_id = str(uuid.uuid4()) # 新しいUUIDを生成
-    cursor.execute("INSERT INTO chats (chat_id) VALUES (?)", (new_chat_id,))
-    conn.commit()
-    conn.close()
-    return new_chat_id
-
-def get_all_chats():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM chats ORDER BY created_at DESC")
-    chats = cursor.fetchall()
-    conn.close()
-    return chats
-
-def delete_chat(chat_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM messages WHERE chat_id = ?", (chat_id,))
-    cursor.execute("DELETE FROM chats WHERE chat_id = ?", (chat_id,))
-    conn.commit()
-    conn.close()
-
-# --- メッセージ操作 ---
-def load_chat_history(chat_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT role, content FROM messages WHERE chat_id = ? ORDER BY timestamp", (chat_id,))
-    history = [{'role': row['role'], 'content': row['content']} for row in cursor.fetchall()]
-    conn.close()
-    return history
-
-def save_chat_history_items(chat_id, history_items_to_save):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    for item in history_items_to_save:
-        role = item.get('role')
-        content = item.get('content')
-        if role and content:
-            cursor.execute(
-                "INSERT INTO messages (chat_id, role, content) VALUES (?, ?, ?)",
-                (chat_id, role, content)
-            )
-    conn.commit()
-    conn.close()
-
-# --- Streamlit UI 初期化 ---
 st.set_page_config(
     page_title="Gemini",
     page_icon=":robot:",
@@ -99,106 +19,160 @@ st.set_page_config(
 )
 st.title("Gemini")
 
-create_tables()
+client = genai.Client()
 
-# --- セッション初期化 ---
-if 'chat_id' not in st.session_state or st.session_state.chat_id is None:
-    st.session_state.chat_id = None
-if 'chat_session' not in st.session_state:
-    st.session_state.chat_session = None
-if 'messages' not in st.session_state:
-    st.session_state.messages = []
-if 'model_name' not in st.session_state:
-    st.session_state.model_name = MODEL_OPTIONS["Gemini-2.5-Flash"] # デフォルトモデルを設定
+conn = sqlite3.connect(DATABASE_NAME, check_same_thread=False)
+c = conn.cursor()
 
-# --- チャットセッション初期化 ---
-def initialize_chat_session(chat_id_to_init):
-    if chat_id_to_init is None:
-        st.session_state.chat_session = None
-        st.session_state.messages = []
-        return
+c.execute("""
+CREATE TABLE IF NOT EXISTS chats (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    created_at TEXT,
+    deleted INTEGER DEFAULT 0
+)
+""")
+c.execute("""
+CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id TEXT,
+    role TEXT,
+    content TEXT,
+    model TEXT,
+    FOREIGN KEY(chat_id) REFERENCES chats(id)
+)
+""")
+conn.commit()
 
-    chat_history = load_chat_history(chat_id_to_init)
-    client = genai.Client()
-    formatted_history = []
-    for chat_dict in chat_history:
-        if chat_dict["role"] == "user":
-            formatted_history.append(types.UserContent(parts=[types.Part.from_text(text=chat_dict["content"])]))
-        else:
-            # Gemini APIはrole='model'で応答を期待する
-            formatted_history.append(types.Content(role="model", parts=[types.Part.from_text(text=chat_dict["content"])]))
+if "current_chat_id" not in st.session_state:
+    st.session_state.current_chat_id = None
 
-    # createメソッドはモデル名と履歴を受け取ってチャットセッションを返す
-    # chat_id_to_initはセッションに保存されるが、createの引数には直接渡さない
-    st.session_state.chat_session = client.chats.create(model=st.session_state["model_name"], history=formatted_history)
-    st.session_state.messages = chat_history
+if "editing_chat_id" not in st.session_state:
+    st.session_state.editing_chat_id = None
 
-# --- サイドバー：チャット管理 ---
+if "new_chat" not in st.session_state:
+    st.session_state.new_chat = False  # TrueならまだDB未保存の新規チャット
+
+def load_chats():
+    c.execute("SELECT id, title FROM chats WHERE deleted = 0 ORDER BY created_at DESC")
+    return c.fetchall()
+
+def load_messages(chat_id):
+    c.execute("SELECT role, content FROM messages WHERE chat_id = ? ORDER BY id", (chat_id,))
+    return [{"role": row[0], "content": row[1]} for row in c.fetchall()]
+
+def create_new_chat_id():
+    return str(uuid.uuid4())
+
+def save_chat_and_message(chat_id, user_message, model=None):
+    now = datetime.now().isoformat()
+    c.execute("INSERT INTO chats (id, title, created_at, deleted) VALUES (?, ?, ?, 0)", (chat_id, "新しいチャット", now))
+    c.execute("INSERT INTO messages (chat_id, role, content, model) VALUES (?, ?, ?, ?)", (chat_id, "user", user_message, model))
+    conn.commit()
+
+def update_chat_title(chat_id, new_title):
+    c.execute("UPDATE chats SET title = ? WHERE id = ?", (new_title, chat_id))
+    conn.commit()
+
+def delete_chat(chat_id):
+    c.execute("UPDATE chats SET deleted = 1 WHERE id = ?", (chat_id,))
+    conn.commit()
+
+def add_message(chat_id, role, content, model=None):
+    c.execute("INSERT INTO messages (chat_id, role, content, model) VALUES (?, ?, ?, ?)", (chat_id, role, content, model))
+    conn.commit()
+
+def generate_title(prompt):
+    # summary_prompt = f"以下の発言から、10〜20文字のタイトルを生成してください:\n\n{prompt}"
+    # res = client.responses.create(
+    #     model="gpt-4.1-nano",
+    #     input=[
+    #         {"role": "system", "content": "あなたはチャットタイトルを生成するアシスタントです。"},
+    #         {"role": "user", "content": summary_prompt}
+    #     ]
+    # )
+    # return res.output_text.strip()
+    return prompt[:8]
+
 with st.sidebar:
-    # 「新しいチャット」ボタンは、クリックされたら新しいチャットIDを作成するが、DBへの初回書き込みは応答後に行われる。
-    # このボタンで新しいチャットIDを設定しても、まだデータベースにはレコードは作成されない。
-    if st.button(":heavy_plus_sign: 新しいチャット", key="new_chat_button"):
-        # 新しいチャットIDを設定し、UIをリセットして新しいチャット表示へ遷移
-        st.session_state.chat_id = create_new_chat() # DBに一時的にチャットIDを作成しておく
-        initialize_chat_session(st.session_state.chat_id)
-        st.session_state.messages = [] # メッセージ履歴もリセット
+    if st.button(":heavy_plus_sign: 新しいチャット"):
+        st.session_state.current_chat_id = create_new_chat_id()
+        st.session_state.new_chat = True
         st.rerun()
 
-    selected_label = st.selectbox(":gear: モデル選択", list(MODEL_OPTIONS.keys()), key="model_select")
-    # モデル選択が変更されたら、現在のチャットセッションを新しいモデルで再初期化する
-    if selected_label != list(MODEL_OPTIONS.keys())[list(MODEL_OPTIONS.values()).index(st.session_state.model_name)]:
-        st.session_state["model_name"] = MODEL_OPTIONS[selected_label]
-        initialize_chat_session(st.session_state.chat_id) # モデル変更に伴いセッションを再初期化
-        st.rerun()
+    selected_label = st.selectbox(":gear: モデル選択", list(MODEL_OPTIONS.keys()))
+    st.session_state["openai_model"] = MODEL_OPTIONS[selected_label]
 
     st.subheader(":speech_balloon: チャット一覧")
-    all_chats = get_all_chats()
-    if not all_chats:
-        st.info("まだチャットがありません。最初のメッセージを入力してください。")
-    else:
-        for c in all_chats:
-            # 各チャットのボタンには一意のキーを付与
-            col1, col2 = st.columns([4,1], vertical_alignment="center")
+    for chat_id, title in load_chats():
+        if st.session_state.editing_chat_id == chat_id:
+            new_title = st.text_input("タイトル編集", value=title, key=f"edit_{chat_id}")
+            col1, col2 = st.columns([1, 1])
             with col1:
-                title = c['created_at']
-                if st.button(title, key=f"chat_button_{c['chat_id']}", use_container_width=True):
-                    st.session_state.chat_id = c['chat_id']
-                    initialize_chat_session(st.session_state.chat_id) # 選択されたチャットのセッションを初期化
+                if st.button("保存", key=f"save_{chat_id}"):
+                    update_chat_title(chat_id, new_title)
+                    st.session_state.editing_chat_id = None
                     st.rerun()
             with col2:
-                if st.button("🗑️", key=f"delete_button_{c['chat_id']}", use_container_width=True):
-                    delete_chat(c['chat_id'])
-                    if st.session_state.chat_id == c['chat_id']:
-                        st.session_state.chat_id = create_new_chat() # 新しいチャットIDを作成
-                        st.session_state.messages = [] # メッセージ履歴もリセット
-
-                    initialize_chat_session(st.session_state.chat_id) # 現在のチャットセッションを再初期化
+                if st.button("キャンセル", key=f"cancel_{chat_id}"):
+                    st.session_state.editing_chat_id = None
+                    st.rerun()
+        else:
+            col1, col2, col3 = st.columns([4, 1, 1], vertical_alignment="center")
+            with col1:
+                if st.button(title, key=f"title_{chat_id}"):
+                    st.session_state.current_chat_id = chat_id
+                    st.session_state.new_chat = False
+                    st.rerun()
+            with col2:
+                if st.button("✏️", key=f"edit_{chat_id}"):
+                    st.session_state.editing_chat_id = chat_id
+                    st.rerun()
+            with col3:
+                if st.button("🗑️", key=f"delete_{chat_id}"):
+                    delete_chat(chat_id)
+                    if st.session_state.current_chat_id == chat_id:
+                        st.session_state.current_chat_id = None
                     st.rerun()
 
-if st.session_state.chat_id is not None:
-    initialize_chat_session(st.session_state.chat_id)
+chat_id = st.session_state.current_chat_id
 
-# --- メッセージ表示 ---
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+if chat_id:
+    if st.session_state.new_chat:
+        messages = []
+    else:
+        messages = load_messages(chat_id)
 
-# --- 入力処理 ---
-user_input = st.chat_input("メッセージを入力してください...")
+    for msg in messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
-if user_input:
-    if st.session_state.chat_id is None:
-        st.session_state.chat_id = create_new_chat() # 新しいチャットIDを作成し、DBに初回書き込み
-        initialize_chat_session(st.session_state.chat_id) # 新しいチャットのセッションを初期化
+    chat_history = []
+    for message_dict in messages:
+        if message_dict["role"] == "user":
+            chat_history.append(types.UserContent(parts=[types.Part.from_text(text=message_dict["content"])]))
+        else:
+            chat_history.append(types.Content(role="model", parts=[types.Part.from_text(text=message_dict["content"])]))
 
-    # 表示・セッションに追加
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
-        st.markdown(user_input)
+    chat = client.chats.create(
+        model=st.session_state["openai_model"],
+        history=chat_history,
+    )
+    if prompt := st.chat_input("質問してみましょう"):
+        # 新規チャットか既存チャットかで保存処理を分岐
+        if st.session_state.new_chat:
+            save_chat_and_message(chat_id, prompt, st.session_state["openai_model"])
+            st.session_state.new_chat = False
+        else:
+            add_message(chat_id, "user", prompt, st.session_state["openai_model"])
 
-    with st.chat_message("model"):
-        try:
-            response = st.session_state.chat_session.send_message_stream(user_input)
+        # ユーザーメッセージ表示
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # アシスタント応答生成
+        with st.chat_message("assistant"):
+            response = chat.send_message_stream(prompt)
             response_text = ""
             message_placeholder = st.empty()
             for chunk in response:
@@ -206,17 +180,16 @@ if user_input:
                 if hasattr(chunk, "text"):
                     response_text += chunk.text
                     message_placeholder.markdown(response_text)
+        add_message(chat_id, "assistant", response_text, model=st.session_state["openai_model"])
 
-            st.session_state.messages.append({"role": "model", "content": response_text})
+        # デフォルトタイトルなら要約して更新
+        c.execute("SELECT title FROM chats WHERE id = ?", (chat_id,))
+        current_title = c.fetchone()[0]
+        if current_title == "新しいチャット":
+            new_title = generate_title(prompt)
+            update_chat_title(chat_id, new_title)
 
-            save_chat_history_items(
-                st.session_state.chat_id,
-                [{'role': 'user', 'content': user_input},
-                 {'role': 'model', 'content': response_text}]
-            )
-
-        except Exception as e:
-            st.error(f"エラーが発生しました: {e}")
-
-    # メッセージが追加されたので、UIを再描画
-    st.rerun()
+        st.rerun()
+else:
+    st.info("左のサイドバーからチャットを作成または選択してください。")
+    st.warning("Geminiとの会話は学習に使用されます")
