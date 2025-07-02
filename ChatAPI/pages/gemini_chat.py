@@ -179,8 +179,11 @@ if chat_id:
             for chunk in response:
                 # chunkオブジェクトにtext属性があるか確認
                 if hasattr(chunk, "text"):
-                    response_text += chunk.text
-                    message_placeholder.markdown(response_text)
+                    try:
+                        response_text += chunk.text
+                        message_placeholder.markdown(response_text)
+                    except Exception as e:
+                        st.warning(e)
         add_message(chat_id, "assistant", response_text, model=st.session_state["openai_model"])
 
         # デフォルトタイトルなら要約して更新
