@@ -2,7 +2,7 @@ import streamlit as st
 
 st.set_page_config(
     page_title="チャットアプリ",
-    page_icon=":money_with_wings:",
+    page_icon=":robot:",
     layout="wide",
 )
 

@@ -75,7 +75,8 @@ def update_chat_title(chat_id, new_title):
     conn.commit()
 
 def delete_chat(chat_id):
-    c.execute("UPDATE chats SET deleted = 1 WHERE id = ?", (chat_id,))
+    c.execute("DELETE FROM chats WHERE id = ?", (chat_id,))
+    c.execute("DELETE FROM messages WHERE chat_id = ?", (chat_id,))
     conn.commit()
 
 def add_message(chat_id, role, content, model=None):
