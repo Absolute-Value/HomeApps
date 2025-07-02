@@ -44,14 +44,14 @@ CREATE TABLE IF NOT EXISTS messages (
 """)
 conn.commit()
 
-if "current_chat_id" not in st.session_state:
-    st.session_state.current_chat_id = None
+if "cur_chat_id" not in st.session_state:
+    st.session_state.cur_chat_id = None
 
-if "editing_chat_id" not in st.session_state:
-    st.session_state.editing_chat_id = None
+if "edit_chat_id" not in st.session_state:
+    st.session_state.edit_chat_id = None
 
-if "new_chat" not in st.session_state:
-    st.session_state.new_chat = False  # TrueならまだDB未保存の新規チャット
+if "is_new_chat" not in st.session_state:
+    st.session_state.is_new_chat = False  # TrueならまだDB未保存の新規チャット
 
 def load_chats():
     c.execute("SELECT id, title FROM chats WHERE deleted = 0 ORDER BY created_at DESC")
@@ -97,8 +97,8 @@ def generate_title(prompt):
 
 with st.sidebar:
     if st.button(":heavy_plus_sign: 新しいチャット"):
-        st.session_state.current_chat_id = create_new_chat_id()
-        st.session_state.new_chat = True
+        st.session_state.cur_chat_id = create_new_chat_id()
+        st.session_state.is_new_chat = True
         st.rerun()
 
     selected_label = st.selectbox(":gear: モデル選択", list(MODEL_OPTIONS.keys()))
@@ -106,40 +106,40 @@ with st.sidebar:
 
     st.subheader(":speech_balloon: チャット一覧")
     for chat_id, title in load_chats():
-        if st.session_state.editing_chat_id == chat_id:
+        if st.session_state.edit_chat_id == chat_id:
             new_title = st.text_input("タイトル編集", value=title, key=f"edit_{chat_id}")
             col1, col2 = st.columns([1, 1])
             with col1:
                 if st.button("保存", key=f"save_{chat_id}"):
                     update_chat_title(chat_id, new_title)
-                    st.session_state.editing_chat_id = None
+                    st.session_state.edit_chat_id = None
                     st.rerun()
             with col2:
                 if st.button("キャンセル", key=f"cancel_{chat_id}"):
-                    st.session_state.editing_chat_id = None
+                    st.session_state.edit_chat_id = None
                     st.rerun()
         else:
             col1, col2, col3 = st.columns([4, 1, 1], vertical_alignment="center")
             with col1:
                 if st.button(title, key=f"title_{chat_id}"):
-                    st.session_state.current_chat_id = chat_id
-                    st.session_state.new_chat = False
+                    st.session_state.cur_chat_id = chat_id
+                    st.session_state.is_new_chat = False
                     st.rerun()
             with col2:
                 if st.button("✏️", key=f"edit_{chat_id}"):
-                    st.session_state.editing_chat_id = chat_id
+                    st.session_state.edit_chat_id = chat_id
                     st.rerun()
             with col3:
                 if st.button("🗑️", key=f"delete_{chat_id}"):
                     delete_chat(chat_id)
-                    if st.session_state.current_chat_id == chat_id:
-                        st.session_state.current_chat_id = None
+                    if st.session_state.cur_chat_id == chat_id:
+                        st.session_state.cur_chat_id = None
                     st.rerun()
 
-chat_id = st.session_state.current_chat_id
+chat_id = st.session_state.cur_chat_id
 
 if chat_id:
-    if st.session_state.new_chat:
+    if st.session_state.is_new_chat:
         messages = []
     else:
         messages = load_messages(chat_id)
@@ -161,9 +161,9 @@ if chat_id:
     )
     if prompt := st.chat_input("質問してみましょう"):
         # 新規チャットか既存チャットかで保存処理を分岐
-        if st.session_state.new_chat:
+        if st.session_state.is_new_chat:
             save_chat_and_message(chat_id, prompt, st.session_state["openai_model"])
-            st.session_state.new_chat = False
+            st.session_state.is_new_chat = False
         else:
             add_message(chat_id, "user", prompt, st.session_state["openai_model"])
 
