@@ -149,7 +149,7 @@ with st.sidebar:
         st.session_state.chat_id = create_new_chat()
         initialize_chat_session(st.session_state.chat_id)
         st.rerun()
-        
+
 initialize_chat_session(st.session_state.chat_id)
 
 # --- メッセージ表示 ---
@@ -167,11 +167,15 @@ if user_input:
         st.markdown(user_input)
 
     try:
-        response = st.session_state.chat_session.send_message(user_input)
-        response_text = response.text
-        st.session_state.messages.append({"role": "model", "content": response_text})
         with st.chat_message("model"):
-            st.markdown(response_text)
+            response = st.session_state.chat_session.send_message_stream(user_input)
+            response_text = ""
+            message_placeholder = st.empty()
+            for chunk in response:
+                if hasattr(chunk, "text"):
+                    response_text += chunk.text
+                    message_placeholder.markdown(response_text)
+            st.session_state.messages.append({"role": "model", "content": response_text})
 
         # DBに保存
         save_chat_history_items(
