@@ -13,7 +13,7 @@ MODEL_OPTIONS = {
 
 st.set_page_config(
     page_title="Gemini",
-    page_icon=":robot:",
+    page_icon="💬",
     initial_sidebar_state="expanded",
     layout="wide",
 )
@@ -144,16 +144,16 @@ if chat_id:
     else:
         messages = load_messages(chat_id)
 
-    for msg in messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-
     chat_history = []
-    for message_dict in messages:
-        if message_dict["role"] == "user":
-            chat_history.append(types.UserContent(parts=[types.Part.from_text(text=message_dict["content"])]))
+    for msg in messages:
+        if msg["role"] == "user":
+            chat_history.append(types.UserContent(parts=[types.Part.from_text(text=msg["content"])]))
+            avatar = None
         else:
-            chat_history.append(types.Content(role="model", parts=[types.Part.from_text(text=message_dict["content"])]))
+            chat_history.append(types.Content(role="model", parts=[types.Part.from_text(text=msg["content"])]))
+            avatar = ":material/robot_2:"
+        with st.chat_message(msg["role"], avatar=avatar):
+            st.markdown(msg["content"])
 
     chat = client.chats.create(
         model=st.session_state["openai_model"],
@@ -172,7 +172,7 @@ if chat_id:
             st.markdown(prompt)
 
         # アシスタント応答生成
-        with st.chat_message("assistant"):
+        with st.chat_message("assistant", avatar=":material/robot_2:"):
             response = chat.send_message_stream(prompt)
             response_text = ""
             message_placeholder = st.empty()

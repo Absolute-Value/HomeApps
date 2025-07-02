@@ -12,7 +12,7 @@ os.makedirs(IMAGE_FOLDER, exist_ok=True)
 
 st.set_page_config(
     page_title="OpenAI",
-    page_icon=":robot:",
+    page_icon="💬",
     initial_sidebar_state="expanded",
     layout="wide",
 )
@@ -150,7 +150,11 @@ if chat_id:
         messages = load_messages(chat_id)
 
     for msg in messages:
-        with st.chat_message(msg["role"]):
+        if msg["role"] == "assistant":
+            avatar = ":material/face_2:"
+        else:
+            avatar = None
+        with st.chat_message(msg["role"], avatar=avatar):
             st.markdown(msg["content"])
             if msg["image_name"]:
                 # 画像がある場合は表示
@@ -192,7 +196,7 @@ if chat_id:
                 st.image(image_path)
 
         # アシスタント応答生成
-        with st.chat_message("assistant"):
+        with st.chat_message("assistant",avatar=":material/face_2:"):
             for i, m in enumerate(messages):
                 if m["image_name"]:
                     image_path = os.path.join(IMAGE_FOLDER, m["image_name"])

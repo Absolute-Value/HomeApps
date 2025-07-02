@@ -8,7 +8,7 @@ from datetime import datetime
 
 st.set_page_config(
     page_title="Gemini 画像生成",
-    page_icon=":robot:",
+    page_icon="🌈",
     initial_sidebar_state="expanded",
     layout="wide",
 )
@@ -80,7 +80,7 @@ if prompt := st.chat_input("画像生成のプロンプトを入力してくだ�
                 image_bytes = part.inline_data.data
                 image = Image.open(BytesIO((image_bytes)))
 
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar=':material/wand_stars:'):
         st.write(answer)
         st.image(image)
     now = datetime.now().isoformat()
@@ -96,7 +96,7 @@ else:
         ask, answer, image_bytes = load_chat(chat_id)
         with st.chat_message("user"):
             st.markdown(ask)
-        with st.chat_message("assistant"):
+        with st.chat_message("assistant", avatar=':material/wand_stars:'):
             st.write(answer)
             image = Image.open(BytesIO((image_bytes)))
             st.image(image)
