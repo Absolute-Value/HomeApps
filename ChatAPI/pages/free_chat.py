@@ -27,7 +27,7 @@ st.title("Free AI Chat")
 groq_client = Groq()
 gem_client = genai.Client()
 
-conn = sqlite3.connect(DATABASE_NAME, check_same_thread=False)
+conn = sqlite3.connect(DATABASE_NAME)
 c = conn.cursor()
 
 c.execute("""
@@ -35,17 +35,28 @@ CREATE TABLE IF NOT EXISTS chats (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT,
     created_at TEXT,
-    deleted INTEGER DEFAULT 0
+    last_model_id INTEGER
 )
 """)
+c.execute("""
+CREATE TABLE IF NOT EXISTS models (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL
+)
+""")
+c.execute("SELECT COUNT(*) FROM models")
+count = c.fetchone()[0]
+if count == 0:
+    c.executemany("INSERT INTO models (name) VALUES (?)", [(m,) for m in model_name_list])
 c.execute("""
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     chat_id INTEGER,
     role TEXT,
     content TEXT,
-    model TEXT,
-    FOREIGN KEY(chat_id) REFERENCES chats(id)
+    model_id INTEGER,
+    FOREIGN KEY(chat_id) REFERENCES chats(id),
+    FOREIGN KEY(model_id) REFERENCES models(id)
 )
 """)
 conn.commit()
@@ -59,19 +70,16 @@ if "edit_chat_id" not in st.session_state:
 if "is_new_chat" not in st.session_state:
     st.session_state.is_new_chat = False
 
-if "model_name" not in st.session_state:
-    st.session_state.model_name = model_name_list[0]
+if "model_id" not in st.session_state:
+    st.session_state.model_id = 0
 
 def load_chats():
-    c.execute("""
-        SELECT c.id, c.title, (SELECT m.model FROM messages m WHERE m.chat_id = c.id ORDER BY m.id DESC LIMIT 1) as model
-        FROM chats c WHERE c.deleted = 0 ORDER BY c.created_at DESC
-    """)
+    c.execute("SELECT id, title, last_model_id FROM chats ORDER BY created_at DESC")
     return [list(row) for row in c.fetchall()]
 
 def load_messages(chat_id):
-    c.execute("SELECT role, content FROM messages WHERE chat_id = ? ORDER BY id", (chat_id,))
-    return [{"role": row[0], "content": row[1]} for row in c.fetchall()]
+    c.execute("SELECT role, content, model_id FROM messages WHERE chat_id = ? ORDER BY id", (chat_id,))
+    return [{"role": row[0], "content": row[1], "model_id": row[2]} for row in c.fetchall()]
 
 def create_new_chat_id():
     c.execute("SELECT seq FROM sqlite_sequence WHERE name='chats'")
@@ -81,10 +89,10 @@ def create_new_chat_id():
     else:
         return int(result[0]) + 1
 
-def save_chat_and_message(chat_id, user_message, model=None):
+def save_chat_and_message(chat_id, user_message, model_id=None):
     now = datetime.now().isoformat()
-    c.execute("INSERT INTO chats (title, created_at) VALUES (?, ?)", ("新しいチャット", now))
-    c.execute("INSERT INTO messages (chat_id, role, content, model) VALUES (?, ?, ?, ?)", (chat_id, "user", user_message, model))
+    c.execute("INSERT INTO chats (title, created_at, last_model_id) VALUES (?, ?, ?)", ("新しいチャット", now, model_id))
+    c.execute("INSERT INTO messages (chat_id, role, content, model_id) VALUES (?, ?, ?, ?)", (chat_id, "user", user_message, model_id))
     conn.commit()
 
 def update_chat_title(chat_id, new_title):
@@ -96,8 +104,9 @@ def delete_chat(chat_id):
     c.execute("DELETE FROM messages WHERE chat_id = ?", (chat_id,))
     conn.commit()
 
-def add_message(chat_id, role, content, model=None):
-    c.execute("INSERT INTO messages (chat_id, role, content, model) VALUES (?, ?, ?, ?)", (chat_id, role, content, model))
+def add_message(chat_id, role, content, model_id=None):
+    c.execute("UPDATE chats SET last_model_id = ? WHERE id = ?", (model_id, chat_id))
+    c.execute("INSERT INTO messages (chat_id, role, content, model_id) VALUES (?, ?, ?, ?)", (chat_id, role, content, model_id))
     conn.commit()
 
 def generate_title(prompt):
@@ -113,11 +122,11 @@ with st.sidebar:
         st.session_state.is_new_chat = True
         st.rerun()
 
-    selected_label = st.selectbox(":gear: モデル選択", list(MODEL_OPTIONS.keys()), index=model_name_list.index(st.session_state.model_name))
-    st.session_state.model_name = MODEL_OPTIONS[selected_label]
+    selected_label = st.selectbox(":gear: モデル選択", list(MODEL_OPTIONS.keys()), index=st.session_state.model_id)
+    st.session_state.model_id = list(MODEL_OPTIONS.keys()).index(selected_label)
 
     st.subheader(":speech_balloon: チャット一覧")
-    for chat_id, title, model_name in load_chats():
+    for chat_id, title, last_model_id in load_chats():
         if st.session_state.edit_chat_id == chat_id:
             new_title = st.text_input("タイトル編集", value=title, key=f"edit_{chat_id}")
             col1, col2 = st.columns([1, 1])
@@ -136,7 +145,7 @@ with st.sidebar:
                 if st.button(title, key=f"title_{chat_id}"):
                     st.session_state.now_chat_id = chat_id
                     st.session_state.is_new_chat = False
-                    st.session_state.model_name = model_name
+                    st.session_state.model_id = last_model_id - 1
                     st.rerun()
             with col2:
                 if st.button("✏️", key=f"edit_{chat_id}"):
@@ -160,20 +169,23 @@ if chat_id:
     for msg in messages:
         if msg["role"] == "assistant":
             chat_history.append(types.Content(role="model", parts=[types.Part.from_text(text=msg["content"])]))
-            avatar = ":material/robot:"
+            model_name = model_name_list[msg["model_id"]-1]
+            with st.chat_message(model_name.split('-')[1]):
+                st.markdown(msg["content"])
+                st.badge(model_name)
         else:
             chat_history.append(types.UserContent(parts=[types.Part.from_text(text=msg["content"])]))
-            avatar = None
-        with st.chat_message(msg["role"], avatar=avatar):
-            st.markdown(msg["content"])
+            with st.chat_message("user"):
+                st.text(msg["content"])
+        msg.pop("model_id", None) 
 
     if prompt := st.chat_input("質問してみましょう"):
         # 新規チャットか既存チャットかで保存処理を分岐
         if st.session_state.is_new_chat:
-            save_chat_and_message(chat_id, prompt, st.session_state.model_name)
+            save_chat_and_message(chat_id, prompt, st.session_state.model_id + 1)
             st.session_state.is_new_chat = False
         else:
-            add_message(chat_id, "user", prompt, st.session_state.model_name)
+            add_message(chat_id, "user", prompt, st.session_state.model_id + 1)
         messages.append({
             "role": "user",
             "content": prompt,
@@ -181,26 +193,27 @@ if chat_id:
 
         # ユーザーメッセージ表示
         with st.chat_message("user"):
-            st.markdown(prompt)
+            st.text(prompt)
 
         # アシスタント応答生成
-        with st.chat_message("assistant",avatar=":material/robot:"):
-            if st.session_state.model_name.startswith("gem"):
+        model_name = model_name_list[st.session_state.model_id]
+        with st.chat_message(model_name.split('-')[1]):
+            if model_name.startswith("gem"):
                 chat = gem_client.chats.create(
-                    model=st.session_state.model_name,
+                    model=model_name,
                     history=chat_history,
                 )
                 response = chat.send_message_stream(prompt)
             else:
                 response = groq_client.chat.completions.create(
-                    model=st.session_state.model_name,
+                    model=model_name,
                     messages=messages,
                     stream=True,
                 )
             response_text = ""
             message_placeholder = st.empty()
             for chunk in response:
-                if st.session_state.model_name.startswith("gem"):
+                if model_name.startswith("gem"):
                     if hasattr(chunk, "text"):
                         try:
                             response_text += chunk.text
@@ -214,7 +227,7 @@ if chat_id:
                             message_placeholder.markdown(response_text)
                     except Exception as e:
                         st.warning(e)
-        add_message(chat_id, "assistant", response_text, model=st.session_state.model_name)
+        add_message(chat_id, "assistant", response_text, st.session_state.model_id + 1)
 
         # デフォルトタイトルなら要約して更新
         c.execute("SELECT title FROM chats WHERE id = ?", (chat_id,))
