@@ -32,7 +32,7 @@ c = conn.cursor()
 
 c.execute("""
 CREATE TABLE IF NOT EXISTS chats (
-    id TEXT PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT,
     created_at TEXT,
     deleted INTEGER DEFAULT 0
@@ -44,7 +44,6 @@ CREATE TABLE IF NOT EXISTS messages (
     chat_id INTEGER,
     role TEXT,
     content TEXT,
-    image_name TEXT,
     model TEXT,
     FOREIGN KEY(chat_id) REFERENCES chats(id)
 )
@@ -75,7 +74,7 @@ def load_messages(chat_id):
     return [{"role": row[0], "content": row[1]} for row in c.fetchall()]
 
 def create_new_chat_id():
-    c.execute("SELECT id FROM chats ORDER BY id DESC LIMIT 1")
+    c.execute("SELECT seq FROM sqlite_sequence WHERE name='chats'")
     result = c.fetchone()
     if result is None:
         return 1
@@ -84,7 +83,7 @@ def create_new_chat_id():
 
 def save_chat_and_message(chat_id, user_message, model=None):
     now = datetime.now().isoformat()
-    c.execute("INSERT INTO chats (id, title, created_at, deleted) VALUES (?, ?, ?, 0)", (chat_id, "新しいチャット", now))
+    c.execute("INSERT INTO chats (title, created_at) VALUES (?, ?)", ("新しいチャット", now))
     c.execute("INSERT INTO messages (chat_id, role, content, model) VALUES (?, ?, ?, ?)", (chat_id, "user", user_message, model))
     conn.commit()
 
@@ -116,10 +115,6 @@ with st.sidebar:
 
     selected_label = st.selectbox(":gear: モデル選択", list(MODEL_OPTIONS.keys()), index=model_name_list.index(st.session_state.model_name))
     st.session_state.model_name = MODEL_OPTIONS[selected_label]
-    if st.session_state.model_name.startswith("gem"):
-        client = genai.Client()
-    else:
-        client = Groq()
 
     st.subheader(":speech_balloon: チャット一覧")
     for chat_id, title, model_name in load_chats():
