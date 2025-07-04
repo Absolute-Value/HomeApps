@@ -8,10 +8,12 @@ from datetime import datetime
 
 DATABASE_NAME = "/data/groq_history.db"
 MODEL_OPTIONS = {
+    "Qwen-32B": "qwen/qwen3-32b",
     "DeepSeek-R1-70B": "deepseek-r1-distill-llama-70b",
     "LLaMA4-Marverick-17B": "meta-llama/llama-4-maverick-17b-128e-instruct",
     "LLaMA4-Scout-17B": "meta-llama/llama-4-scout-17b-16e-instruct",
 }
+model_name_list = list(MODEL_OPTIONS.values())
 
 st.set_page_config(
     page_title="groq",
@@ -56,9 +58,15 @@ if "ed_chat_id" not in st.session_state:
 if "ne_chat" not in st.session_state:
     st.session_state.ne_chat = False  # TrueならまだDB未保存の新規チャット
 
+if "model_name" not in st.session_state:
+    st.session_state.model_name = model_name_list[0]
+
 def load_chats():
-    c.execute("SELECT id, title FROM chats WHERE deleted = 0 ORDER BY created_at DESC")
-    return c.fetchall()
+    c.execute("""
+        SELECT c.id, c.title, (SELECT m.model FROM messages m WHERE m.chat_id = c.id ORDER BY m.id DESC LIMIT 1) as model
+        FROM chats c WHERE c.deleted = 0 ORDER BY c.created_at DESC
+    """)
+    return [list(row) for row in c.fetchall()]
 
 def load_messages(chat_id):
     c.execute("SELECT role, content FROM messages WHERE chat_id = ? ORDER BY id", (chat_id,))
@@ -102,11 +110,11 @@ with st.sidebar:
         st.session_state.ne_chat = True
         st.rerun()
 
-    selected_label = st.selectbox(":gear: モデル選択", list(MODEL_OPTIONS.keys()))
-    st.session_state["openai_model"] = MODEL_OPTIONS[selected_label]
+    selected_label = st.selectbox(":gear: モデル選択", list(MODEL_OPTIONS.keys()), index=model_name_list.index(st.session_state.model_name))
+    st.session_state.model_name = MODEL_OPTIONS[selected_label]
 
     st.subheader(":speech_balloon: チャット一覧")
-    for chat_id, title in load_chats():
+    for chat_id, title, model_name in load_chats():
         if st.session_state.ed_chat_id == chat_id:
             new_title = st.text_input("タイトル編集", value=title, key=f"edit_{chat_id}")
             col1, col2 = st.columns([1, 1])
@@ -125,6 +133,7 @@ with st.sidebar:
                 if st.button(title, key=f"title_{chat_id}"):
                     st.session_state.cu_chat_id = chat_id
                     st.session_state.ne_chat = False
+                    st.session_state.model_name = model_name
                     st.rerun()
             with col2:
                 if st.button("✏️", key=f"edit_{chat_id}"):
@@ -156,10 +165,10 @@ if chat_id:
     if prompt := st.chat_input("質問してみましょう", accept_file=True):
         # 新規チャットか既存チャットかで保存処理を分岐
         if st.session_state.ne_chat:
-            save_chat_and_message(chat_id, prompt.text, st.session_state["openai_model"])
+            save_chat_and_message(chat_id, prompt.text, st.session_state.model_name)
             st.session_state.ne_chat = False
         else:
-            add_message(chat_id, "user", prompt.text, st.session_state["openai_model"])
+            add_message(chat_id, "user", prompt.text, st.session_state.model_name)
         messages.append({
             "role": "user",
             "content": prompt.text,
@@ -172,7 +181,7 @@ if chat_id:
         # アシスタント応答生成
         with st.chat_message("assistant",avatar=":material/robot:"):
             response = client.chat.completions.create(
-                model=st.session_state["openai_model"],
+                model=st.session_state.model_name,
                 messages=messages,
                 stream=True,
             )
@@ -185,7 +194,7 @@ if chat_id:
                         message_placeholder.markdown(response_text)
                 except Exception as e:
                     st.warning(e)
-        add_message(chat_id, "assistant", response_text, model=st.session_state["openai_model"])
+        add_message(chat_id, "assistant", response_text, model=st.session_state.model_name)
 
         # デフォルトタイトルなら要約して更新
         c.execute("SELECT title FROM chats WHERE id = ?", (chat_id,))
