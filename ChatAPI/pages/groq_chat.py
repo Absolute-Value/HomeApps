@@ -3,26 +3,29 @@
 import sqlite3
 import streamlit as st
 from groq import Groq
+from google import genai
+from google.genai import types
 from datetime import datetime
 
-DATABASE_NAME = "/data/groq_history.db"
+DATABASE_NAME = "/data/free_chat_history.db"
 MODEL_OPTIONS = {
-    "Qwen-32B": "qwen/qwen3-32b",
-    "DeepSeek-R1-70B": "deepseek-r1-distill-llama-70b",
     "LLaMA4-Marverick-17B": "meta-llama/llama-4-maverick-17b-128e-instruct",
     "LLaMA4-Scout-17B": "meta-llama/llama-4-scout-17b-16e-instruct",
+    "Gemini-2.5-Flash-Lite": "gemini-2.5-flash-lite-preview-06-17",
+    "Gemini-2.5-Flash": "gemini-2.5-flash",
+    "Gemma-3-27B": "gemma-3-27b-it",
 }
 model_name_list = list(MODEL_OPTIONS.values())
 
 st.set_page_config(
-    page_title="groq",
+    page_title="Free AI Chat",
     page_icon="💬",
     initial_sidebar_state="expanded",
     layout="wide",
 )
-st.title("groq")
-
-client = Groq()
+st.title("Free AI Chat")
+groq_client = Groq()
+gem_client = genai.Client()
 
 conn = sqlite3.connect(DATABASE_NAME, check_same_thread=False)
 c = conn.cursor()
@@ -55,7 +58,7 @@ if "ed_chat_id" not in st.session_state:
     st.session_state.ed_chat_id = None
 
 if "ne_chat" not in st.session_state:
-    st.session_state.ne_chat = False  # TrueならまだDB未保存の新規チャット
+    st.session_state.ne_chat = False
 
 if "model_name" not in st.session_state:
     st.session_state.model_name = model_name_list[0]
@@ -99,14 +102,11 @@ def add_message(chat_id, role, content, model=None):
     conn.commit()
 
 def generate_title(prompt):
-    res = client.chat.completions.create(
-        model="meta-llama/llama-4-maverick-17b-128e-instruct",
-        messages=[
-            {"role": "system", "content": "あなたはチャットタイトルを生成するアシスタントです。ユーザーの発言から、10〜20文字のタイトルを生成してください。回答はタイトルだけでお願いします。"},
-            {"role": "user", "content": prompt}
-        ]
+    response = gem_client.models.generate_content(
+        model="gemini-2.5-flash-lite-preview-06-17",
+        contents=f"以下の文章に20文字以下のタイトルを生成してください。回答はタイトルだけでお願いします。\n\n文章「{prompt}」"
     )
-    return res.choices[0].message.content
+    return response.text
 
 with st.sidebar:
     if st.button(":heavy_plus_sign: 新しいチャット"):
@@ -116,6 +116,10 @@ with st.sidebar:
 
     selected_label = st.selectbox(":gear: モデル選択", list(MODEL_OPTIONS.keys()), index=model_name_list.index(st.session_state.model_name))
     st.session_state.model_name = MODEL_OPTIONS[selected_label]
+    if st.session_state.model_name.startswith("gem"):
+        client = genai.Client()
+    else:
+        client = Groq()
 
     st.subheader(":speech_balloon: チャット一覧")
     for chat_id, title, model_name in load_chats():
@@ -157,53 +161,71 @@ if chat_id:
     else:
         messages = load_messages(chat_id)
 
+    chat_history = []
     for msg in messages:
         if msg["role"] == "assistant":
+            chat_history.append(types.Content(role="model", parts=[types.Part.from_text(text=msg["content"])]))
             avatar = ":material/robot:"
         else:
+            chat_history.append(types.UserContent(parts=[types.Part.from_text(text=msg["content"])]))
             avatar = None
         with st.chat_message(msg["role"], avatar=avatar):
             st.markdown(msg["content"])
 
-    if prompt := st.chat_input("質問してみましょう", accept_file=True):
+    if prompt := st.chat_input("質問してみましょう"):
         # 新規チャットか既存チャットかで保存処理を分岐
         if st.session_state.ne_chat:
-            save_chat_and_message(chat_id, prompt.text, st.session_state.model_name)
+            save_chat_and_message(chat_id, prompt, st.session_state.model_name)
             st.session_state.ne_chat = False
         else:
-            add_message(chat_id, "user", prompt.text, st.session_state.model_name)
+            add_message(chat_id, "user", prompt, st.session_state.model_name)
         messages.append({
             "role": "user",
-            "content": prompt.text,
+            "content": prompt,
         })
 
         # ユーザーメッセージ表示
         with st.chat_message("user"):
-            st.markdown(prompt.text)
+            st.markdown(prompt)
 
         # アシスタント応答生成
         with st.chat_message("assistant",avatar=":material/robot:"):
-            response = client.chat.completions.create(
-                model=st.session_state.model_name,
-                messages=messages,
-                stream=True,
-            )
+            if st.session_state.model_name.startswith("gem"):
+                chat = gem_client.chats.create(
+                    model=st.session_state.model_name,
+                    history=chat_history,
+                )
+                response = chat.send_message_stream(prompt)
+            else:
+                response = groq_client.chat.completions.create(
+                    model=st.session_state.model_name,
+                    messages=messages,
+                    stream=True,
+                )
             response_text = ""
             message_placeholder = st.empty()
             for chunk in response:
-                try:
-                    if chunk.choices[0].finish_reason != 'stop':
-                        response_text += chunk.choices[0].delta.content
-                        message_placeholder.markdown(response_text)
-                except Exception as e:
-                    st.warning(e)
+                if st.session_state.model_name.startswith("gem"):
+                    if hasattr(chunk, "text"):
+                        try:
+                            response_text += chunk.text
+                            message_placeholder.markdown(response_text)
+                        except Exception as e:
+                            st.warning(e)
+                else:
+                    try:
+                        if chunk.choices[0].finish_reason != 'stop':
+                            response_text += chunk.choices[0].delta.content
+                            message_placeholder.markdown(response_text)
+                    except Exception as e:
+                        st.warning(e)
         add_message(chat_id, "assistant", response_text, model=st.session_state.model_name)
 
         # デフォルトタイトルなら要約して更新
         c.execute("SELECT title FROM chats WHERE id = ?", (chat_id,))
         current_title = c.fetchone()[0]
         if current_title == "新しいチャット":
-            new_title = generate_title(prompt.text)
+            new_title = generate_title(prompt)
             update_chat_title(chat_id, new_title)
 
         st.rerun()
