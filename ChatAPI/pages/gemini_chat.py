@@ -11,6 +11,7 @@ DATABASE_NAME = "/data/gemini_history.db"
 MODEL_OPTIONS = {
     "Gemini-2.5-Flash-Lite": "gemini-2.5-flash-lite-preview-06-17",
     "Gemini-2.5-Flash": "gemini-2.5-flash",
+    "Gemma-3-27B": "gemma-3-27b-it",
 }
 
 st.set_page_config(
