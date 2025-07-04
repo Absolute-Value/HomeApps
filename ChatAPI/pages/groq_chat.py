@@ -1,6 +1,5 @@
 # https://console.groq.com/docs/overview
 
-import uuid
 import sqlite3
 import streamlit as st
 from groq import Groq
@@ -39,7 +38,7 @@ CREATE TABLE IF NOT EXISTS chats (
 c.execute("""
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    chat_id TEXT,
+    chat_id INTEGER,
     role TEXT,
     content TEXT,
     image_name TEXT,
@@ -73,7 +72,12 @@ def load_messages(chat_id):
     return [{"role": row[0], "content": row[1]} for row in c.fetchall()]
 
 def create_new_chat_id():
-    return str(uuid.uuid4())
+    c.execute("SELECT id FROM chats ORDER BY id DESC LIMIT 1")
+    result = c.fetchone()
+    if result is None:
+        return 1
+    else:
+        return int(result[0]) + 1
 
 def save_chat_and_message(chat_id, user_message, model=None):
     now = datetime.now().isoformat()
@@ -147,7 +151,6 @@ with st.sidebar:
                     st.rerun()
 
 chat_id = st.session_state.cu_chat_id
-
 if chat_id:
     if st.session_state.ne_chat:
         messages = []
