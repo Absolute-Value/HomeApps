@@ -239,5 +239,5 @@ if chat_id:
         st.rerun()
 else:
     st.info("左のサイドバーからチャットを作成または選択してください。")
-    st.info("画像入力に対応しました。")
+    st.warning("Geminiの入力は学習に使用されます。")
                 
