@@ -83,12 +83,11 @@ def add_message(chat_id, role, content, image_name=None, model=None):
     conn.commit()
 
 def generate_title(prompt):
-    summary_prompt = f"以下の発言から、10〜20文字のタイトルを生成してください:\n\n{prompt}"
     res = client.responses.create(
         model="gpt-4.1-nano",
         input=[
-            {"role": "system", "content": "あなたはチャットタイトルを生成するアシスタントです。"},
-            {"role": "user", "content": summary_prompt}
+            {"role": "system", "content": "あなたはチャットタイトルを生成するアシスタントです。ユーザーの発言から、10〜20文字のタイトルを生成してください。回答はタイトルだけでお願いします。"},
+            {"role": "user", "content": prompt}
         ]
     )
     return res.output_text.strip()
