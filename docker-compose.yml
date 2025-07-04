@@ -1,6 +1,6 @@
 services:
-  openai-chat:
-    container_name: openai-chat
+  chat-bot:
+    container_name: chat-bot
     build: ./ChatAPI
     expose:
       - "8501"
@@ -41,7 +41,7 @@ services:
       - "80:80"
       - "443:443"
     depends_on:
-      - openai-chat
+      - chat-bot
       - expenses-app
     restart: always
 
