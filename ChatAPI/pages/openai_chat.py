@@ -44,14 +44,10 @@ CREATE TABLE IF NOT EXISTS messages (
 """)
 conn.commit()
 
-if "current_chat_id" not in st.session_state:
-    st.session_state.current_chat_id = None
-
-if "editing_chat_id" not in st.session_state:
-    st.session_state.editing_chat_id = None
-
-if "new_chat" not in st.session_state:
-    st.session_state.new_chat = False  # TrueならまだDB未保存の新規チャット
+session_var_list = ["current_chat_id", "editing_chat_id", "new_chat"]
+for session_var in session_var_list:
+    if session_var not in st.session_state:
+        st.session_state[session_var] = None
 
 def load_chats():
     c.execute("SELECT id, title FROM chats WHERE deleted = 0 ORDER BY created_at DESC")
@@ -60,9 +56,6 @@ def load_chats():
 def load_messages(chat_id):
     c.execute("SELECT role, content, image_name FROM messages WHERE chat_id = ? ORDER BY id", (chat_id,))
     return [{"role": row[0], "content": row[1], "image_name": row[2]} for row in c.fetchall()]
-
-def create_new_chat_id():
-    return str(uuid.uuid4())
 
 def save_chat_and_message(chat_id, user_message, image_name=None, model=None):
     now = datetime.now().isoformat()
@@ -94,7 +87,7 @@ def generate_title(prompt):
 
 with st.sidebar:
     if st.button(":heavy_plus_sign: 新しいチャット"):
-        st.session_state.current_chat_id = create_new_chat_id()
+        st.session_state.current_chat_id = str(uuid.uuid4())
         st.session_state.new_chat = True
         st.rerun()
 

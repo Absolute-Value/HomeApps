@@ -61,14 +61,10 @@ CREATE TABLE IF NOT EXISTS messages (
 """)
 conn.commit()
 
-if "now_chat_id" not in st.session_state:
-    st.session_state.now_chat_id = None
-
-if "edit_chat_id" not in st.session_state:
-    st.session_state.edit_chat_id = None
-
-if "is_new_chat" not in st.session_state:
-    st.session_state.is_new_chat = False
+session_var_list = ["now_chat_id", "edit_chat_id", "is_new_chat"]
+for session_var in session_var_list:
+    if session_var not in st.session_state:
+        st.session_state[session_var] = None
 
 if "model_id" not in st.session_state:
     st.session_state.model_id = 0
