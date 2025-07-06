@@ -47,6 +47,10 @@ def delete_chat(chat_id):
     conn.commit()
 
 with st.sidebar:
+    if st.button(":heavy_plus_sign: 新しいチャット"):
+        st.session_state.chat_id = None
+        st.rerun()
+
     st.subheader(":speech_balloon: チャット一覧")
     for chat_id, ask in load_chat_asks():
         col1, col2 = st.columns([5, 1], vertical_alignment="center")
