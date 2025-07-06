@@ -14,6 +14,7 @@ MODEL_OPTIONS = {
     "Gemini-2.5-Flash-Lite": "gemini-2.5-flash-lite-preview-06-17",
     "Gemini-2.5-Flash": "gemini-2.5-flash",
     "Gemma-3-27B": "gemma-3-27b-it",
+    "Gemini-2.5-Pro": "gemini-2.5-pro",
 }
 model_name_list = list(MODEL_OPTIONS.values())
 
