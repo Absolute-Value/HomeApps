@@ -6,7 +6,13 @@ from PIL import Image
 from io import BytesIO
 from datetime import datetime
 
-MODE_NAMES = ["画像生成", "画像認識"]
+MODEL_OPTIONS = {
+    "Gemini-2.5-Flash-Lite": "gemini-2.5-flash-lite-preview-06-17",
+    "Gemini-2.5-Flash": "gemini-2.5-flash",
+    "Gemini-2.5-Pro": "gemini-2.5-pro",
+}
+model_name_list = list(MODEL_OPTIONS.values())
+
 st.set_page_config(
     page_title="Gemini 画像(生成/認識)",
     page_icon="🌈",
@@ -26,7 +32,7 @@ CREATE TABLE IF NOT EXISTS chats (
     answer TEXT,
     image BLOB,
     created_at TEXT,
-    mode INTEGER DEFAULT 0
+    model_id INTEGER DEFAULT 0
 )
 """)
 conn.commit()
@@ -39,7 +45,7 @@ def load_chat_asks():
     return c.fetchall()
 
 def load_chat(chat_id):
-    c.execute("SELECT ask, answer, image, mode FROM chats WHERE id = ?", (chat_id,))
+    c.execute("SELECT ask, answer, image, model_id FROM chats WHERE id = ?", (chat_id,))
     return c.fetchone()
 
 def delete_chat(chat_id):
@@ -50,6 +56,9 @@ with st.sidebar:
     if st.button(":heavy_plus_sign: 新しいチャット"):
         st.session_state.chat_id = None
         st.rerun()
+
+    selected_label = st.selectbox(":gear: モデル選択", list(MODEL_OPTIONS.keys()))
+    model_id = list(MODEL_OPTIONS.keys()).index(selected_label) + 1
 
     st.subheader(":speech_balloon: チャット一覧")
     for chat_id, ask in load_chat_asks():
@@ -66,20 +75,13 @@ with st.sidebar:
                 st.rerun()
 
 if prompt := st.chat_input("画像ありで画像認識、画像なしで画像生成を行います。", accept_file=True):
-    mode = 0
     with st.chat_message("user"):
         st.markdown(prompt.text)
-        model = "gemini-2.0-flash-preview-image-generation"
-        contents = (prompt.text)
-        config=types.GenerateContentConfig(
-            response_modalities=['TEXT', 'IMAGE']
-        )
         if prompt["files"]:
             image = prompt["files"][0]
             image_bytes = image.read()
             st.image(image)
-            mode = 1
-            model='gemini-2.5-flash'
+            model = model_name_list[model_id - 1]
             contents=[
                 types.Part.from_bytes(
                     data=image_bytes,
@@ -88,6 +90,13 @@ if prompt := st.chat_input("画像ありで画像認識、画像なしで画像�
                 prompt.text
             ]
             config = None
+        else:
+            model_id = 0
+            model = "gemini-2.0-flash-preview-image-generation"
+            contents = (prompt.text)
+            config=types.GenerateContentConfig(
+                response_modalities=['TEXT', 'IMAGE']
+            )
 
     with st.spinner("Wait for it...", show_time=True):
         response = client.models.generate_content(
@@ -104,11 +113,14 @@ if prompt := st.chat_input("画像ありで画像認識、画像なしで画像�
 
     with st.chat_message("assistant", avatar=':material/wand_stars:'):
         st.write(answer)
-        if mode == 0:
+        if model_id == 0:
             st.image(image)
+        else:
+            st.badge(model_name_list[model_id - 1])
+
     now = datetime.now().isoformat()
     c = conn.cursor()
-    c.execute("INSERT INTO chats (ask, answer, image, created_at, mode) VALUES (?, ?, ?, ?, ?)", (prompt.text, answer, image_bytes, now, mode))
+    c.execute("INSERT INTO chats (ask, answer, image, created_at, model_id) VALUES (?, ?, ?, ?, ?)", (prompt.text, answer, image_bytes, now, model_id))
     conn.commit()
     st.session_state.chat_id = c.lastrowid
     conn.close()
@@ -119,9 +131,11 @@ else:
         image = Image.open(BytesIO((image_bytes)))
         with st.chat_message("user"):
             st.markdown(ask)
-            if mode == 1:
+            if mode > 0:
                 st.image(image)
         with st.chat_message("assistant", avatar=':material/wand_stars:'):
             st.write(answer)
             if mode == 0:
                 st.image(image)
+            else:
+                st.badge(model_name_list[model_id - 1])
