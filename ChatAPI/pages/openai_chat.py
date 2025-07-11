@@ -1,5 +1,4 @@
-import os
-import uuid
+import io
 import base64
 import sqlite3
 import streamlit as st
@@ -7,8 +6,15 @@ from openai import OpenAI
 from datetime import datetime
 from PIL import Image
 
-IMAGE_FOLDER = "/data/images"
-os.makedirs(IMAGE_FOLDER, exist_ok=True)
+DATABASE_NAME = "/data/chat_history.db"
+MODEL_OPTIONS = {
+    "GPT-4.1-nano": "gpt-4.1-nano",
+    "GPT-4.1-mini": "gpt-4.1-mini",
+    "GPT-4.1": "gpt-4.1",
+    "GPT-4o-mini-search": "gpt-4o-mini-search-preview",
+    "GPT-4o-search": "gpt-4o-search-preview"
+}
+model_name_list = list(MODEL_OPTIONS.values())
 
 st.set_page_config(
     page_title="OpenAI",
@@ -20,7 +26,7 @@ st.title("OpenAI")
 
 client = OpenAI()
 
-conn = sqlite3.connect("/data/chat_history.db", check_same_thread=False)
+conn = sqlite3.connect(DATABASE_NAME)
 c = conn.cursor()
 
 c.execute("""
@@ -28,17 +34,18 @@ CREATE TABLE IF NOT EXISTS chats (
     id TEXT PRIMARY KEY,
     title TEXT,
     created_at TEXT,
+    last_model_id INTEGER,
     deleted INTEGER DEFAULT 0
 )
 """)
 c.execute("""
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    chat_id TEXT,
+    chat_id INTEGER,
     role TEXT,
     content TEXT,
-    image_name TEXT,
-    model TEXT,
+    image BLOB,
+    model_id INTEGER,
     FOREIGN KEY(chat_id) REFERENCES chats(id)
 )
 """)
@@ -49,18 +56,29 @@ for session_var in session_var_list:
     if session_var not in st.session_state:
         st.session_state[session_var] = None
 
+if "model_id" not in st.session_state:
+    st.session_state.model_id = 0
+
 def load_chats():
-    c.execute("SELECT id, title FROM chats WHERE deleted = 0 ORDER BY created_at DESC")
+    c.execute("SELECT id, title, last_model_id FROM chats WHERE deleted = 0 ORDER BY created_at DESC")
     return c.fetchall()
 
 def load_messages(chat_id):
-    c.execute("SELECT role, content, image_name FROM messages WHERE chat_id = ? ORDER BY id", (chat_id,))
-    return [{"role": row[0], "content": row[1], "image_name": row[2]} for row in c.fetchall()]
+    c.execute("SELECT role, content, image, model_id FROM messages WHERE chat_id = ? ORDER BY id", (chat_id,))
+    return [{"role": row[0], "content": row[1], "image": row[2], "model_id": row[3]} for row in c.fetchall()]
 
-def save_chat_and_message(chat_id, user_message, image_name=None, model=None):
+def create_new_chat_id():
+    c.execute("SELECT seq FROM sqlite_sequence WHERE name='chats'")
+    result = c.fetchone()
+    if result is None:
+        return 1
+    else:
+        return int(result[0]) + 1
+
+def save_chat_and_message(chat_id, user_message, image=None, model_id=None):
     now = datetime.now().isoformat()
-    c.execute("INSERT INTO chats (id, title, created_at, deleted) VALUES (?, ?, ?, 0)", (chat_id, "新しいチャット", now))
-    c.execute("INSERT INTO messages (chat_id, role, content, image_name, model) VALUES (?, ?, ?, ?, ?)", (chat_id, "user", user_message, image_name, model))
+    c.execute("INSERT INTO chats (id, title, created_at, last_model_id) VALUES (?, ?, ?, ?)", (chat_id, "新しいチャット", now, model_id))
+    c.execute("INSERT INTO messages (chat_id, role, content, image, model_id) VALUES (?, ?, ?, ?, ?)", (chat_id, "user", user_message, image, model_id))
     conn.commit()
 
 def update_chat_title(chat_id, new_title):
@@ -71,8 +89,9 @@ def delete_chat(chat_id):
     c.execute("UPDATE chats SET deleted = 1 WHERE id = ?", (chat_id,))
     conn.commit()
 
-def add_message(chat_id, role, content, image_name=None, model=None):
-    c.execute("INSERT INTO messages (chat_id, role, content, image_name, model) VALUES (?, ?, ?, ?, ?)", (chat_id, role, content, image_name, model))
+def add_message(chat_id, role, content, image=None, model_id=None):
+    c.execute("UPDATE chats SET last_model_id = ? WHERE id = ?", (model_id, chat_id))
+    c.execute("INSERT INTO messages (chat_id, role, content, image, model_id) VALUES (?, ?, ?, ?, ?)", (chat_id, role, content, image, model_id))
     conn.commit()
 
 def generate_title(prompt):
@@ -87,22 +106,15 @@ def generate_title(prompt):
 
 with st.sidebar:
     if st.button(":heavy_plus_sign: 新しいチャット"):
-        st.session_state.current_chat_id = str(uuid.uuid4())
+        st.session_state.current_chat_id = create_new_chat_id()
         st.session_state.new_chat = True
         st.rerun()
 
-    model_options = {
-        "GPT-4.1-nano": "gpt-4.1-nano",
-        "GPT-4.1-mini": "gpt-4.1-mini",
-        "GPT-4.1": "gpt-4.1",
-        "GPT-4o-mini-search": "gpt-4o-mini-search-preview",
-        "GPT-4o-search": "gpt-4o-search-preview"
-    }
-    selected_label = st.selectbox(":gear: モデル選択", list(model_options.keys()))
-    st.session_state["openai_model"] = model_options[selected_label]
+    selected_label = st.selectbox(":gear: モデル選択", list(MODEL_OPTIONS.keys()), index=st.session_state.model_id)
+    st.session_state.model_id = list(MODEL_OPTIONS.keys()).index(selected_label)
 
     st.subheader(":speech_balloon: チャット一覧")
-    for chat_id, title in load_chats():
+    for chat_id, title, last_model_id in load_chats():
         if st.session_state.editing_chat_id == chat_id:
             new_title = st.text_input("タイトル編集", value=title, key=f"edit_{chat_id}")
             col1, col2 = st.columns([1, 1])
@@ -121,6 +133,7 @@ with st.sidebar:
                 if st.button(title, key=f"title_{chat_id}"):
                     st.session_state.current_chat_id = chat_id
                     st.session_state.new_chat = False
+                    st.session_state.model_id = last_model_id - 1
                     st.rerun()
             with col2:
                 if st.button("✏️", key=f"edit_{chat_id}"):
@@ -134,7 +147,6 @@ with st.sidebar:
                     st.rerun()
 
 chat_id = st.session_state.current_chat_id
-
 if chat_id:
     if st.session_state.new_chat:
         messages = []
@@ -142,76 +154,92 @@ if chat_id:
         messages = load_messages(chat_id)
 
     for msg in messages:
-        if msg["role"] == "assistant":
+        if msg["role"] == "assitant":
             avatar = ":material/face_2:"
         else:
             avatar = None
         with st.chat_message(msg["role"], avatar=avatar):
             st.markdown(msg["content"])
-            if msg["image_name"]:
+            if msg["image"]:
                 # 画像がある場合は表示
-                image = Image.open(os.path.join(IMAGE_FOLDER, msg["image_name"]))
+                image = Image.open(io.BytesIO(msg["image"]))
                 st.image(image)
+            model_name = model_name_list[msg["model_id"]-1]
+            if msg["role"] == "assistant":
+                if  "-search" in model_name:
+                    icon = ":material/search:"
+                    color = "blue"
+                else:
+                    icon = None
+                    color = "orange"
+                st.badge(model_name, icon=icon, color=color)
 
     if prompt := st.chat_input("質問してみましょう", accept_file=True):
-        image_name = None
-        image_path = None
-        base64_image = None
-
-        # 画像がアップロードされた場合の処理
+        image_bytes = None
         if prompt["files"]:
-            image_name = f"{uuid.uuid4()}.jpg"
-            image_path = os.path.join(IMAGE_FOLDER, image_name)
             image_file = prompt["files"][0]
             image = Image.open(image_file)
             if image.width > 1920 or image.height > 1920:
                 image.thumbnail((1920, 1920))
-            image.save(image_path, format="JPEG")
-            base64_image = base64.b64encode(open(image_path, "rb").read()).decode("utf-8")
+            image_bytes = io.BytesIO()
+            if image.mode == "RGBA":
+                image = image.convert("RGB")
+            image.save(image_bytes, format="JPEG")
+            image_bytes = image_bytes.getvalue()
 
         # 新規チャットか既存チャットかで保存処理を分岐
         if st.session_state.new_chat:
-            save_chat_and_message(chat_id, prompt.text, image_name, st.session_state["openai_model"])
+            save_chat_and_message(chat_id, prompt.text, image_bytes, st.session_state.model_id + 1)
             st.session_state.new_chat = False
         else:
-            add_message(chat_id, "user", prompt.text, image_name, st.session_state["openai_model"])
+            add_message(chat_id, "user", prompt.text, image_bytes, st.session_state.model_id + 1)
         messages.append({
             "role": "user",
             "content": prompt.text,
-            "image_name": image_name
+            "image": image_bytes
         })
 
         # ユーザーメッセージ表示
         with st.chat_message("user"):
             st.markdown(prompt.text)
-            if image_path:
-                st.image(image_path)
+            if image_bytes:
+                st.image(image_bytes)
 
         # アシスタント応答生成
         with st.chat_message("assistant",avatar=":material/face_2:"):
-            for i, m in enumerate(messages):
-                if m["image_name"]:
-                    image_path = os.path.join(IMAGE_FOLDER, m["image_name"])
-                    with open(image_path, "rb") as img_file:
-                        base64_image = base64.b64encode(img_file.read()).decode("utf-8")
-                    messages[i]["content"] = [
-                        {"type": "text", "text": m["content"]},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                    ]
-            if "-search-preview" in st.session_state["openai_model"]:
+            processed_messages = []
+            for m in messages:
+                if m["image"]:
+                    # 画像付きメッセージの場合
+                    processed_messages.append({
+                        "role": m["role"],
+                        "content": [
+                            {"type": "text", "text": m["content"]},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64.b64encode(m['image']).decode('utf-8')}"}}
+                        ]
+                    })
+                else:
+                    # テキストのみのメッセージの場合
+                    processed_messages.append({
+                        "role": m["role"],
+                        "content": [
+                            {"type": "text", "text": m["content"]}
+                        ]
+                    })
+            if "-search-preview" in model_name_list[st.session_state.model_id]:
                 web_search_options = {
                     "search_context_size": "medium",
                 }
             else:
                 web_search_options = None
             stream = client.chat.completions.create(
-                model=st.session_state["openai_model"],
+                model=model_name_list[st.session_state.model_id],
                 web_search_options=web_search_options,
-                messages=messages,
+                messages=processed_messages,
                 stream=True,
             )
             response = st.write_stream(stream)
-        add_message(chat_id, "assistant", response, model=st.session_state["openai_model"])
+        add_message(chat_id, "assistant", response, None, st.session_state.model_id + 1)
 
         # デフォルトタイトルなら要約して更新
         c.execute("SELECT title FROM chats WHERE id = ?", (chat_id,))
