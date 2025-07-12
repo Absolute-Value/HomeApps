@@ -119,6 +119,8 @@ if prompt := st.chat_input("画像ありで画像認識、画像なしで画像�
             contents=contents,
             config=config
         )
+        answer = None
+        image = None
         for part in response.candidates[0].content.parts:
             if part.text is not None:
                 answer = part.text
@@ -126,21 +128,24 @@ if prompt := st.chat_input("画像ありで画像認識、画像なしで画像�
                 image_bytes = part.inline_data.data
                 image = Image.open(BytesIO((image_bytes)))
 
-    with st.chat_message("assistant", avatar=':material/wand_stars:'):
-        if answer:
-            st.write(answer)
-        if model_id == 0:
-            st.image(image)
-        else:
-            st.badge(model_name_list[model_id - 1])
+    if image:
+        with st.chat_message("assistant", avatar=':material/wand_stars:'):
+            if answer is not None:
+                st.write(answer)
+            if model_id == 0:
+                st.image(image)
+            else:
+                st.badge(model_name_list[model_id - 1])
 
-    now = datetime.now().isoformat()
-    c = conn.cursor()
-    c.execute("INSERT INTO chats (ask, answer, image, created_at, model_id, title) VALUES (?, ?, ?, ?, ?, ?)", (ask_text, answer, image_bytes, now, model_id, title))
-    conn.commit()
-    st.session_state.chat_id = c.lastrowid
-    conn.close()
-    st.rerun()
+        now = datetime.now().isoformat()
+        c = conn.cursor()
+        c.execute("INSERT INTO chats (ask, answer, image, created_at, model_id, title) VALUES (?, ?, ?, ?, ?, ?)", (ask_text, answer, image_bytes, now, model_id, title))
+        conn.commit()
+        st.session_state.chat_id = c.lastrowid
+        conn.close()
+        st.rerun()
+    else:
+        st.error(f"画像が生成されませんでした。{response}")
 else:
     if st.session_state.chat_id:
         ask, answer, image_bytes, mode = load_chat(st.session_state.chat_id)
