@@ -75,8 +75,8 @@ def load_chats():
     return [list(row) for row in c.fetchall()]
 
 def load_messages(chat_id):
-    c.execute("SELECT role, content, model_id FROM messages WHERE chat_id = ? ORDER BY id", (chat_id,))
-    return [{"role": row[0], "content": row[1], "model_id": row[2]} for row in c.fetchall()]
+    c.execute("SELECT id, role, content, model_id FROM messages WHERE chat_id = ? ORDER BY id", (chat_id,))
+    return [{"id": row[0], "role": row[1], "content": row[2], "model_id": row[3]} for row in c.fetchall()]
 
 def create_new_chat_id():
     c.execute("SELECT seq FROM sqlite_sequence WHERE name='chats'")
@@ -104,6 +104,10 @@ def delete_chat(chat_id):
 def add_message(chat_id, role, content, model_id=None):
     c.execute("UPDATE chats SET last_model_id = ? WHERE id = ?", (model_id, chat_id))
     c.execute("INSERT INTO messages (chat_id, role, content, model_id) VALUES (?, ?, ?, ?)", (chat_id, role, content, model_id))
+    conn.commit()
+
+def delete_message(message_id):
+    c.execute("DELETE FROM messages WHERE chat_id = ? AND id >= ?", (st.session_state.now_chat_id, message_id))
     conn.commit()
 
 def generate_title(prompt):
@@ -155,6 +159,10 @@ with st.sidebar:
                         st.session_state.now_chat_id = None
                     st.rerun()
 
+if "now_message_id" in st.session_state:
+    delete_message(st.session_state.now_message_id)
+st.session_state.now_message_id = None
+
 chat_id = st.session_state.now_chat_id
 if chat_id:
     if st.session_state.is_new_chat:
@@ -173,7 +181,13 @@ if chat_id:
         else:
             chat_history.append(types.UserContent(parts=[types.Part.from_text(text=msg["content"])]))
             with st.chat_message("user"):
-                st.text(msg["content"])
+                col1, col2 = st.columns([0.99, 0.01], vertical_alignment="center")
+                with col1:
+                    st.write(msg["content"])
+                with col2:
+                    if st.button(":material/delete_outline:", key=f"user_{msg['id']}"):
+                        st.session_state.now_message_id = msg["id"]
+                        st.rerun()
         msg.pop("model_id", None) 
 
     if prompt := st.chat_input("質問してみましょう"):
@@ -190,7 +204,13 @@ if chat_id:
 
         # ユーザーメッセージ表示
         with st.chat_message("user"):
-            st.text(prompt)
+            col1, col2 = st.columns([0.99, 0.01], vertical_alignment="center")
+            with col1:
+                st.write(prompt)
+            with col2:
+                if st.button(":material/delete_outline:", key=f"user_{len(messages)}"):
+                    st.session_state.now_message_id = len(messages)
+                    st.rerun()
 
         # アシスタント応答生成
         model_name = model_name_list[st.session_state.model_id]
