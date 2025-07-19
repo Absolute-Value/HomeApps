@@ -188,7 +188,8 @@ if chat_id:
                     if st.button(":material/delete_outline:", key=f"user_{msg['id']}"):
                         st.session_state.now_message_id = msg["id"]
                         st.rerun()
-        msg.pop("model_id", None) 
+        msg.pop("model_id", None)
+        msg.pop("id", None)
 
     if prompt := st.chat_input("質問してみましょう"):
         # 新規チャットか既存チャットかで保存処理を分岐
