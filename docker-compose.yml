@@ -18,9 +18,9 @@ services:
     container_name: expenses-app
     build: ./Household_Expenses
     expose:
-      - "8504"
+      - "8502"
     ports:
-      - "8504:8504"
+      - "8502:8502"
     env_file:
       - .env
     volumes:

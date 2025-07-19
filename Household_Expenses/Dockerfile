@@ -4,6 +4,6 @@ WORKDIR /tmp_app
 COPY pyproject.toml uv.lock start.sh /tmp_app/
 RUN uv sync
 
-EXPOSE 8504
+EXPOSE 8502
 RUN chmod +x start.sh
 CMD ["sh", "start.sh"]
