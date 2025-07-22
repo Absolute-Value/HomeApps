@@ -183,7 +183,7 @@ if chat_id:
             with st.chat_message("user"):
                 col1, col2 = st.columns([0.99, 0.01], vertical_alignment="center")
                 with col1:
-                    st.write(msg["content"])
+                    st.text(msg["content"])
                 with col2:
                     if st.button(":material/delete_outline:", key=f"user_{msg['id']}"):
                         st.session_state.now_message_id = msg["id"]
@@ -207,7 +207,7 @@ if chat_id:
         with st.chat_message("user"):
             col1, col2 = st.columns([0.99, 0.01], vertical_alignment="center")
             with col1:
-                st.write(prompt)
+                st.text(prompt)
             with col2:
                 if st.button(":material/delete_outline:", key=f"user_{len(messages)}"):
                     st.session_state.now_message_id = len(messages)
