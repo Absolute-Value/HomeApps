@@ -67,6 +67,7 @@ def main():
             item_df = pd.read_sql_query(f"SELECT id, 品名, 金額, 単位 FROM items WHERE invoice_id = {selected_id}", conn)
             conn.close()
 
+            item_df["金額"] = item_df["金額"].replace('', 0)
             image_name = invoice_df.loc[invoice_df["id"] == selected_id, "画像名"].values[0]
             image_path = os.path.join(IMAGES_DIR, image_name)
             if os.path.exists(image_path):
