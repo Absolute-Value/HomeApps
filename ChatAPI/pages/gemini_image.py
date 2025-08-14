@@ -112,6 +112,7 @@ if prompt := st.chat_input("画像ありで画像認識、画像なしで画像�
             config=types.GenerateContentConfig(
                 response_modalities=['TEXT', 'IMAGE']
             )
+            image = None
 
     with st.spinner("Wait for it...", show_time=True):
         response = client.models.generate_content(
@@ -120,7 +121,6 @@ if prompt := st.chat_input("画像ありで画像認識、画像なしで画像�
             config=config
         )
         answer = None
-        image = None
         for part in response.candidates[0].content.parts:
             if part.text is not None:
                 answer = part.text
