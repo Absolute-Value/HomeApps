@@ -159,4 +159,4 @@ else:
             if mode == 0:
                 st.image(image)
             else:
-                st.badge(model_name_list[model_id - 1])
+                st.badge(model_name_list[mode - 1])
