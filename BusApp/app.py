@@ -23,16 +23,34 @@ st.title(PAGE_TITLE)
 cur_time = datetime.now()
 today = cur_time.strftime("%Y-%m-%d")
 st.write(today)
-departure_busstop = st.selectbox(
-    "出発",
-    STOPS,
-    index=1,
-)
-arrival_busstop = st.selectbox(
-    "到着",
-    STOPS,
-    index=0,
-)
+if "today" not in st.session_state:
+    st.session_state["today"] = today
+
+if 'indexes' not in st.session_state:
+    st.session_state['indexes'] = [1,0]
+
+col1, col2, col3 = st.columns(3, vertical_alignment="bottom")
+
+with col1:
+    departure_busstop = st.selectbox(
+        "出発",
+        STOPS,
+        index=st.session_state['indexes'][0],
+    )
+with col2:
+    arrival_busstop = st.selectbox(
+        "到着",
+        STOPS,
+        index=st.session_state['indexes'][1],
+    )
+with col3:
+    if st.button(":left_right_arrow:"):
+        st.session_state['indexes'].reverse()
+        st.rerun()
+from_to = f'{departure_busstop}_{arrival_busstop}'
+
+if st.button("更新"):
+    st.rerun()
 
 if departure_busstop != arrival_busstop:
     params = {
@@ -70,36 +88,38 @@ if departure_busstop != arrival_busstop:
         hide_index=True
     )
 
-    params["date"] = today
-    resp = requests.get(URL, params=params)
-    soup = BeautifulSoup(resp.text, "html.parser")
+    if from_to not in st.session_state or st.session_state["today"] != today:
+        params["date"] = today
+        resp = requests.get(URL, params=params)
+        soup = BeautifulSoup(resp.text, "html.parser")
 
-    time_elems = soup.find_all("div", class_="mx-4 my-2 flex flex-col items-end")
-    way_elems = soup.find_all("div", class_="flex flex-col")
-    pole_elems = soup.find_all("a", class_="mr-2 block")
-    all_stop_elems = soup.find_all("a", class_="mr-4")
+        time_elems = soup.find_all("div", class_="mx-4 my-2 flex flex-col items-end")
+        way_elems = soup.find_all("div", class_="flex flex-col")
+        pole_elems = soup.find_all("a", class_="mr-2 block")
+        all_stop_elems = soup.find_all("a", class_="mr-4")
 
-    departure_times = [time_elem.find_all("time")[0].get_text(strip=True) for time_elem in time_elems]
-    arrival_times = [time_elem.find_all("time")[1].get_text(strip=True) for time_elem in time_elems]
-    durings = [time_elem.find("span", class_="text-text-grey").get_text(strip=True) for time_elem in time_elems]
-    ways = [way_elem.find("span", class_="font-bold").get_text(strip=True) for way_elem in way_elems]
-    pole_links = [BASE_URL + pole_elem["href"] for pole_elem in pole_elems]
-    pole_nums = [pole_elem.get_text(strip=True) for pole_elem in pole_elems]
-    all_stop_urls = [BASE_URL + all_stop_elem["href"] for all_stop_elem in all_stop_elems]
+        departure_times = [time_elem.find_all("time")[0].get_text(strip=True) for time_elem in time_elems]
+        arrival_times = [time_elem.find_all("time")[1].get_text(strip=True) for time_elem in time_elems]
+        durings = [time_elem.find("span", class_="text-text-grey").get_text(strip=True) for time_elem in time_elems]
+        ways = [way_elem.find("span", class_="font-bold").get_text(strip=True) for way_elem in way_elems]
+        pole_links = [BASE_URL + pole_elem["href"] for pole_elem in pole_elems]
+        pole_nums = [pole_elem.get_text(strip=True) for pole_elem in pole_elems]
+        all_stop_urls = [BASE_URL + all_stop_elem["href"] for all_stop_elem in all_stop_elems]
 
-    df = pd.DataFrame(
-        {
-            '出発時刻': departure_times,
-            '到着時刻': arrival_times,
-            '移動時間': durings,
-            '系統・行先': ways,
-            'のりば': pole_nums,
-            'url': all_stop_urls,
-        }
-    )
+        st.session_state[from_to] = pd.DataFrame(
+            {
+                '出発時刻': departure_times,
+                '到着時刻': arrival_times,
+                '移動時間': durings,
+                '系統・行先': ways,
+                'のりば': pole_nums,
+                'url': all_stop_urls,
+            }
+        )
+        st.write('roloaded')
 
     st.dataframe(
-        df,
+        st.session_state[from_to],
         column_config={
             'url': st.column_config.LinkColumn('経路', display_text='通過時刻表'),
         },
