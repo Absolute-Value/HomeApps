@@ -12,7 +12,8 @@ MODEL_OPTIONS = {
     "GPT-4.1-mini": "gpt-4.1-mini",
     "GPT-4.1": "gpt-4.1",
     "GPT-4o-mini-search": "gpt-4o-mini-search-preview",
-    "GPT-4o-search": "gpt-4o-search-preview"
+    "GPT-4o-search": "gpt-4o-search-preview",
+    "GPT-5-chat": "gpt-5-chat-latest",
 }
 model_name_list = list(MODEL_OPTIONS.values())
 
@@ -96,7 +97,7 @@ def add_message(chat_id, role, content, image=None, model_id=None):
 
 def generate_title(prompt):
     res = client.responses.create(
-        model="gpt-4.1-nano",
+        model="gpt-5-nano",
         input=[
             {"role": "system", "content": "あなたはチャットタイトルを生成するアシスタントです。ユーザーの発言から、10〜20文字のタイトルを生成してください。回答はタイトルだけでお願いします。"},
             {"role": "user", "content": prompt}
@@ -227,17 +228,18 @@ if chat_id:
                         ]
                     })
             if "-search-preview" in model_name_list[st.session_state.model_id]:
-                web_search_options = {
-                    "search_context_size": "medium",
-                }
+                stream = client.chat.completions.create(
+                    model=model_name_list[st.session_state.model_id],
+                    web_search_options={"search_context_size": "medium"},
+                    messages=processed_messages,
+                    stream=True,
+                )
             else:
-                web_search_options = None
-            stream = client.chat.completions.create(
-                model=model_name_list[st.session_state.model_id],
-                web_search_options=web_search_options,
-                messages=processed_messages,
-                stream=True,
-            )
+                stream = client.chat.completions.create(
+                    model=model_name_list[st.session_state.model_id],
+                    messages=processed_messages,
+                    stream=True,
+                )
             response = st.write_stream(stream)
         add_message(chat_id, "assistant", response, None, st.session_state.model_id + 1)
 

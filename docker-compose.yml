@@ -2,6 +2,8 @@ services:
   chat-bot:
     container_name: chat-bot
     build: ./ChatAPI
+    environment:
+      - TZ=Asia/Tokyo
     expose:
       - "8501"
     ports:
@@ -17,6 +19,8 @@ services:
   expenses-app:
     container_name: expenses-app
     build: ./Household_Expenses
+    environment:
+      - TZ=Asia/Tokyo
     expose:
       - "8502"
     ports:
@@ -26,6 +30,22 @@ services:
     volumes:
       - ./data/:/data/
       - ./Household_Expenses/:/app/
+    working_dir: /app
+    restart: unless-stopped
+
+  bus-app:
+    container_name: bus-app
+    build: ./BusApp
+    environment:
+      - TZ=Asia/Tokyo
+    expose:
+      - "8503"
+    ports:
+      - "8503:8503"
+    env_file:
+      - .env
+    volumes:
+      - ./BusApp/:/app/
     working_dir: /app
     restart: unless-stopped
 
