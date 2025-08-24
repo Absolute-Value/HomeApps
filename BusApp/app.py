@@ -1,7 +1,7 @@
 import requests
 import pandas as pd
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 
 PAGE_TITLE = 'バス情報'
@@ -128,6 +128,9 @@ if departure_busstop != arrival_busstop:
         )
         st.write('roloaded')
 
+    st.session_state[from_to]['出発時刻_datetime'] = pd.to_datetime(st.session_state[from_to]['出発時刻'].apply(lambda x: f'{today} {x}'))
+    st.session_state[from_to] = st.session_state[from_to][st.session_state[from_to]['出発時刻_datetime'] > cur_time - timedelta(minutes=30)]
+    st.session_state[from_to] = st.session_state[from_to].drop(columns=['出発時刻_datetime'])
     st.dataframe(
         st.session_state[from_to],
         column_config={
