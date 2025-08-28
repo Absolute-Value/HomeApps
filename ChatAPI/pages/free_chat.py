@@ -26,7 +26,7 @@ c.execute("""
 CREATE TABLE IF NOT EXISTS chats (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT,
-    created_at TEXT,
+    used_at TEXT,
     last_model_id INTEGER
 )
 """)
@@ -52,7 +52,7 @@ if "free_model_id" not in st.session_state:
     st.session_state.free_model_id = 1
 
 def load_chats():
-    c.execute("SELECT id, title, last_model_id FROM chats ORDER BY created_at DESC")
+    c.execute("SELECT id, title, last_model_id FROM chats ORDER BY used_at DESC")
     return [list(row) for row in c.fetchall()]
 
 def load_messages(chat_id):
@@ -69,7 +69,7 @@ def create_new_chat_id():
 
 def save_chat_and_message(chat_id, user_message, model_id=None):
     now = datetime.now().isoformat()
-    c.execute("INSERT INTO chats (title, created_at, last_model_id) VALUES (?, ?, ?)", ("新しいチャット", now, model_id))
+    c.execute("INSERT INTO chats (title, used_at, last_model_id) VALUES (?, ?, ?)", ("新しいチャット", now, model_id))
     c.execute("INSERT INTO messages (chat_id, role, content, model_id) VALUES (?, ?, ?, ?)", (chat_id, "user", user_message, model_id))
     conn.commit()
 
@@ -83,7 +83,8 @@ def delete_chat(chat_id):
     conn.commit()
 
 def add_message(chat_id, role, content, model_id=None):
-    c.execute("UPDATE chats SET last_model_id = ? WHERE id = ?", (model_id, chat_id))
+    now = datetime.now().isoformat()
+    c.execute("UPDATE chats SET used_at = ?, last_model_id = ? WHERE id = ?", (now, model_id, chat_id))
     c.execute("INSERT INTO messages (chat_id, role, content, model_id) VALUES (?, ?, ?, ?)", (chat_id, role, content, model_id))
     conn.commit()
 
