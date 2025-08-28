@@ -8,15 +8,6 @@ from google.genai import types
 from datetime import datetime
 
 DATABASE_NAME = "/data/free_chat_history.db"
-MODEL_OPTIONS = {
-    "LLaMA4-Marverick-17B": "meta-llama/llama-4-maverick-17b-128e-instruct",
-    "LLaMA4-Scout-17B": "meta-llama/llama-4-scout-17b-16e-instruct",
-    "Gemini-2.5-Flash-Lite": "gemini-2.5-flash-lite-preview-06-17",
-    "Gemini-2.5-Flash": "gemini-2.5-flash",
-    "Gemma-3-27B": "gemma-3-27b-it",
-    "Gemini-2.5-Pro": "gemini-2.5-pro",
-}
-model_name_list = list(MODEL_OPTIONS.values())
 
 st.set_page_config(
     page_title="Free AI Chat",
@@ -40,16 +31,6 @@ CREATE TABLE IF NOT EXISTS chats (
 )
 """)
 c.execute("""
-CREATE TABLE IF NOT EXISTS models (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE NOT NULL
-)
-""")
-c.execute("SELECT COUNT(*) FROM models")
-count = c.fetchone()[0]
-if count == 0:
-    c.executemany("INSERT INTO models (name) VALUES (?)", [(m,) for m in model_name_list])
-c.execute("""
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     chat_id INTEGER,
@@ -68,7 +49,7 @@ for session_var in session_var_list:
         st.session_state[session_var] = None
 
 if "model_id" not in st.session_state:
-    st.session_state.model_id = 0
+    st.session_state.model_id = 1
 
 def load_chats():
     c.execute("SELECT id, title, last_model_id FROM chats ORDER BY created_at DESC")
@@ -117,14 +98,19 @@ def generate_title(prompt):
     )
     return response.text
 
+c.execute("SELECT name, display FROM models ORDER BY id")
+model_rows = c.fetchall()
+model_names = [row[0] for row in model_rows]
+model_displays = [row[1] for row in model_rows]
+
 with st.sidebar:
     if st.button(":heavy_plus_sign: 新しいチャット"):
         st.session_state.now_chat_id = create_new_chat_id()
         st.session_state.is_new_chat = True
         st.rerun()
 
-    selected_label = st.selectbox(":gear: モデル選択", list(MODEL_OPTIONS.keys()), index=st.session_state.model_id)
-    st.session_state.model_id = list(MODEL_OPTIONS.keys()).index(selected_label)
+    selected_display = st.selectbox(":gear: モデル選択", model_displays, index=st.session_state.model_id-1)
+    st.session_state.model_id = model_displays.index(selected_display) + 1
 
     st.subheader(":speech_balloon: チャット一覧")
     for chat_id, title, last_model_id in load_chats():
@@ -146,7 +132,7 @@ with st.sidebar:
                 if st.button(title, key=f"title_{chat_id}"):
                     st.session_state.now_chat_id = chat_id
                     st.session_state.is_new_chat = False
-                    st.session_state.model_id = last_model_id - 1
+                    st.session_state.model_id = last_model_id
                     st.rerun()
             with col2:
                 if st.button("✏️", key=f"edit_{chat_id}"):
@@ -174,7 +160,7 @@ if chat_id:
     for msg in messages:
         if msg["role"] == "assistant":
             chat_history.append(types.Content(role="model", parts=[types.Part.from_text(text=msg["content"])]))
-            model_name = model_name_list[msg["model_id"]-1]
+            model_name = model_names[msg["model_id"]-1]
             with st.chat_message(model_name.split('-')[1]):
                 st.markdown(msg["content"])
                 st.badge(model_name)
@@ -194,10 +180,10 @@ if chat_id:
     if prompt := st.chat_input("質問してみましょう"):
         # 新規チャットか既存チャットかで保存処理を分岐
         if st.session_state.is_new_chat:
-            save_chat_and_message(chat_id, prompt, st.session_state.model_id + 1)
+            save_chat_and_message(chat_id, prompt, st.session_state.model_id)
             st.session_state.is_new_chat = False
         else:
-            add_message(chat_id, "user", prompt, st.session_state.model_id + 1)
+            add_message(chat_id, "user", prompt, st.session_state.model_id)
         messages.append({
             "role": "user",
             "content": prompt,
@@ -214,7 +200,7 @@ if chat_id:
                     st.rerun()
 
         # アシスタント応答生成
-        model_name = model_name_list[st.session_state.model_id]
+        model_name = model_names[st.session_state.model_id-1]
         with st.chat_message(model_name.split('-')[1]):
             if model_name.startswith("gem"):
                 chat = gem_client.chats.create(
@@ -245,7 +231,7 @@ if chat_id:
                             message_placeholder.markdown(response_text)
                     except Exception as e:
                         st.warning(e)
-        add_message(chat_id, "assistant", response_text, st.session_state.model_id + 1)
+        add_message(chat_id, "assistant", response_text, st.session_state.model_id)
 
         # デフォルトタイトルなら要約して更新
         c.execute("SELECT title FROM chats WHERE id = ?", (chat_id,))
