@@ -244,4 +244,5 @@ if chat_id:
 else:
     st.info("左のサイドバーからチャットを作成または選択してください。")
     st.warning("Geminiの入力は学習に使用されます。")
-                
+    all_model = sorted([m.id for m in groq_client.models.list().data])
+    st.html("<br>".join(all_model))
