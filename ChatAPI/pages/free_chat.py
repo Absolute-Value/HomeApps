@@ -158,13 +158,18 @@ if chat_id:
         messages = load_messages(chat_id)
 
     chat_history = []
-    for msg in messages:
+    for i, msg in enumerate(messages):
         if msg["role"] == "assistant":
             chat_history.append(types.Content(role="model", parts=[types.Part.from_text(text=msg["content"])]))
             model_name = model_names[msg["model_id"]-1]
             with st.chat_message(model_name.split('-')[1]):
                 st.markdown(msg["content"])
                 st.badge(model_name)
+        elif msg["role"] == "reasoning":
+            model_name = model_names[messages[i+1]["model_id"]-1]
+            with st.chat_message(model_name.split('-')[1]):
+                with st.expander("Reasoning"):
+                    st.caption(msg["content"])
         else:
             chat_history.append(types.UserContent(parts=[types.Part.from_text(text=msg["content"])]))
             with st.chat_message("user"):
@@ -177,6 +182,7 @@ if chat_id:
                         st.rerun()
         msg.pop("model_id", None)
         msg.pop("id", None)
+    messages = [msg for msg in messages if msg.get("role") != "reasoning"]
 
     if prompt := st.chat_input("質問してみましょう"):
         # 新規チャットか既存チャットかで保存処理を分岐
@@ -203,35 +209,46 @@ if chat_id:
         # アシスタント応答生成
         model_name = model_names[st.session_state.free_model_id-1]
         with st.chat_message(model_name.split('-')[1]):
-            if model_name.startswith("gem"):
-                chat = gem_client.chats.create(
-                    model=model_name,
-                    history=chat_history,
-                )
-                response = chat.send_message_stream(prompt)
-            else:
-                response = groq_client.chat.completions.create(
-                    model=model_name,
-                    messages=messages,
-                    stream=True,
-                )
-            response_text = ""
+            replace_expander = st.empty()
+            with replace_expander:
+                reasoning_placeholder = st.empty()
             message_placeholder = st.empty()
-            for chunk in response:
-                if model_name.startswith("gem"):
-                    if hasattr(chunk, "text"):
-                        try:
-                            response_text += chunk.text
-                            message_placeholder.markdown(response_text)
-                        except Exception as e:
-                            st.warning(e)
-                else:
+        if model_name.startswith("gem"):
+            chat = gem_client.chats.create(
+                model=model_name,
+                history=chat_history,
+            )
+            response = chat.send_message_stream(prompt)
+        else:
+            response = groq_client.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                stream=True,
+            )
+        resoning_text = ""
+        response_text = ""
+        for chunk in response:
+            if model_name.startswith("gem"):
+                if hasattr(chunk, "text"):
                     try:
-                        if chunk.choices[0].finish_reason != 'stop':
-                            response_text += chunk.choices[0].delta.content
-                            message_placeholder.markdown(response_text)
+                        response_text += chunk.text
+                        message_placeholder.markdown(response_text)
                     except Exception as e:
                         st.warning(e)
+            else:
+                if chunk.choices[0].finish_reason != 'stop':
+                    content = chunk.choices[0].delta.content
+                    reasoning = chunk.choices[0].delta.reasoning
+                    if content:
+                        response_text += content
+                        message_placeholder.markdown(response_text)
+                    elif reasoning:
+                        replace_expander = st.expander("Reasoning", expanded=True)
+                        resoning_text += chunk.choices[0].delta.reasoning
+                        reasoning_placeholder.caption(resoning_text)
+                  
+        if resoning_text:
+            add_message(chat_id, "reasoning", resoning_text, st.session_state.free_model_id)
         add_message(chat_id, "assistant", response_text, st.session_state.free_model_id)
 
         # デフォルトタイトルなら要約して更新
