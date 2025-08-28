@@ -52,9 +52,11 @@ services:
   nginx:
     image: nginx:latest
     container_name: nginx_proxy
+    environment:
+      - TZ=Asia/Tokyo
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro
+      - ./nginx/log:/var/log/nginx
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
     ports:
@@ -63,7 +65,21 @@ services:
     depends_on:
       - chat-bot
       - expenses-app
+      - bus-app
+      - oauth2-proxy
     restart: always
+
+  oauth2-proxy:
+    container_name: oauth2-proxy
+    image: quay.io/oauth2-proxy/oauth2-proxy:latest
+    environment:
+      - TZ=Asia/Tokyo
+    ports:
+      - "4180:4180"
+    env_file:
+      - ./nginx/oauth2_proxy.env
+    volumes:
+      - ./nginx/allowed_emails.txt:/etc/oauth2_proxy/allowed_emails.txt:ro
 
   certbot:
     image: certbot/certbot
