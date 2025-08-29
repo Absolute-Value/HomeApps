@@ -33,3 +33,11 @@ response = client.audio.speech.create(
 
 audio_bytes = b"".join(response.iter_bytes())
 st.audio(audio_bytes, format="audio/wav")
+
+st.download_button(
+    label="Download wav",
+    data=audio_bytes,
+    file_name="output.wav",
+    mime="audio/wav",
+    icon=":material/download:"
+)
