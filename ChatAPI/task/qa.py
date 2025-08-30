@@ -14,7 +14,7 @@ st.header(task_name)
 
 client = Groq()
 
-with st.form("my_form"):
+with st.form("task_form"):
     system_prompt = f"ユーザーから与えられた文章を要約してください。\n要約した文章のみを出力してください。"
     icon = ":material/summarize:"
     if task_name == "翻訳":
