@@ -209,9 +209,7 @@ if chat_id:
         # アシスタント応答生成
         model_name = model_names[st.session_state.free_model_id-1]
         with st.chat_message(model_name.split('-')[1]):
-            replace_expander = st.empty()
-            with replace_expander:
-                reasoning_placeholder = st.empty()
+            reasoning_placeholder = st.empty()
             message_placeholder = st.empty()
         if model_name.startswith("gem"):
             chat = gem_client.chats.create(
@@ -243,7 +241,6 @@ if chat_id:
                         response_text += content
                         message_placeholder.markdown(response_text)
                     elif reasoning:
-                        replace_expander = st.expander("Reasoning", expanded=True)
                         resoning_text += chunk.choices[0].delta.reasoning
                         reasoning_placeholder.caption(resoning_text)
                   
