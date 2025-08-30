@@ -24,20 +24,24 @@ voice = st.selectbox('voice', voices)
 text = st.text_area('text', value='I love building and shipping new features for our users!')
 response_format = "wav"
 
-response = client.audio.speech.create(
-    model=model,
-    voice=voice,
-    input=text,
-    response_format=response_format
-)
+if st.button("開始"):
+    response = client.audio.speech.create(
+        model=model,
+        voice=voice,
+        input=text,
+        response_format=response_format
+    )
+    audio_bytes = b"".join(response.iter_bytes())
+    st.audio(audio_bytes, format="audio/wav")
 
-audio_bytes = b"".join(response.iter_bytes())
-st.audio(audio_bytes, format="audio/wav")
-
-st.download_button(
-    label="Download wav",
-    data=audio_bytes,
-    file_name="output.wav",
-    mime="audio/wav",
-    icon=":material/download:"
-)
+    @st.fragment
+    def download_fragment(audio_bytes):
+        st.download_button(
+            label="Download wav",
+            data=audio_bytes,
+            file_name="output.wav",
+            mime="audio/wav",
+            icon=":material/download:"
+        )
+    
+    download_fragment(audio_bytes)
