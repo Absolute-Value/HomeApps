@@ -15,7 +15,7 @@ client = Groq()
 MODEL_OPTIONS = ("whisper-large-v3", "whisper-large-v3-turbo")
 LANGUAGE_OPTIONS = (None, 'en', 'ja')
 model = st.radio("model", MODEL_OPTIONS)
-language = st.selectbox("言語", LANGUAGE_OPTIONS)
+language = st.selectbox("言語", LANGUAGE_OPTIONS, accept_new_options=True)
 temperature = st.slider("temperature", 0.0, 1.0, value=0.0)
 
 uploaded_file = st.file_uploader("音声ファイルをアップロード")
