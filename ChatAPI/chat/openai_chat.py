@@ -112,41 +112,38 @@ with st.sidebar:
         st.session_state.new_chat = True
         st.rerun()
 
-    selected_label = st.selectbox(":gear: モデル選択", list(MODEL_OPTIONS.keys()), index=st.session_state.model_id)
+    st.header(":material/psychology: モデル選択")
+    selected_label = st.selectbox("モデル選択", list(MODEL_OPTIONS.keys()), index=st.session_state.model_id, label_visibility="collapsed")
     st.session_state.model_id = list(MODEL_OPTIONS.keys()).index(selected_label)
 
-    st.subheader(":speech_balloon: チャット一覧")
+    st.header(":material/chat: チャット一覧")
     for chat_id, title, last_model_id in load_chats():
+        chat_container = st.container(horizontal=True, horizontal_alignment="right", gap="small", vertical_alignment="center")
         if st.session_state.editing_chat_id == chat_id:
-            new_title = st.text_input("タイトル編集", value=title, key=f"edit_{chat_id}")
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                if st.button("保存", key=f"save_{chat_id}"):
+            new_title = chat_container.text_input("タイトル編集", value=title, label_visibility="collapsed", key=f"edit_{chat_id}")
+            icon = ":material/cancel:"
+            if new_title != title:
+                icon = ":material/save:"
+            if chat_container.button(icon, key=f"save_{chat_id}", type="tertiary", width="content"):
+                if new_title != title:
                     update_chat_title(chat_id, new_title)
-                    st.session_state.editing_chat_id = None
-                    st.rerun()
-            with col2:
-                if st.button("キャンセル", key=f"cancel_{chat_id}"):
-                    st.session_state.editing_chat_id = None
-                    st.rerun()
+                st.session_state.editing_chat_id = None
+                st.rerun()
         else:
-            col1, col2, col3 = st.columns([4, 1, 1], vertical_alignment="center")
-            with col1:
-                if st.button(title, key=f"title_{chat_id}"):
-                    st.session_state.current_chat_id = chat_id
-                    st.session_state.new_chat = False
-                    st.session_state.model_id = last_model_id - 1
-                    st.rerun()
-            with col2:
-                if st.button("✏️", key=f"edit_{chat_id}"):
-                    st.session_state.editing_chat_id = chat_id
-                    st.rerun()
-            with col3:
-                if st.button("🗑️", key=f"delete_{chat_id}"):
-                    delete_chat(chat_id)
-                    if st.session_state.current_chat_id == chat_id:
-                        st.session_state.current_chat_id = None
-                    st.rerun()
+            col1, col2, col3 = chat_container.columns([6, 1, 1], vertical_alignment="center", gap=None)
+            if col1.button(title, key=f"title_{chat_id}", type="tertiary", width="content"):
+                st.session_state.current_chat_id = chat_id
+                st.session_state.new_chat = False
+                st.session_state.model_id = last_model_id - 1
+                st.rerun()
+            if col2.button(":material/edit:", key=f"edit_{chat_id}", type="tertiary", width="stretch"):
+                st.session_state.editing_chat_id = chat_id
+                st.rerun()
+            if col3.button(":material/delete:", key=f"delete_{chat_id}", type="tertiary", width="stretch"):
+                delete_chat(chat_id)
+                if st.session_state.current_chat_id == chat_id:
+                    st.session_state.current_chat_id = None
+                st.rerun()
 
 chat_id = st.session_state.current_chat_id
 if chat_id:
