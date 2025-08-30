@@ -1,13 +1,16 @@
 import streamlit as st
 
-st.set_page_config(
-    page_title="チャットアプリ",
-    page_icon="💬",
-    layout="wide",
-)
+pages = {
+    "チャット": [
+        st.Page("chat/free_chat.py", title="Free AI Chat", icon=":material/chat:"),
+        st.Page("chat/gemini_image.py", title="Gemini 画像", icon=":material/image:"),
+        st.Page("chat/openai_chat.py", title="OpenAI Chat", icon=":material/network_intelligence:"),
+    ],
+    "音声": [
+        st.Page("audio/text_to_speech.py", title="音声合成", icon=":material/text_to_speech:"),
+        st.Page("audio/speech_to_text.py", title="音声認識", icon=":material/speech_to_text:"),
+    ],
+}
 
-# https://fonts.google.com/icons
-st.title("チャットアプリ")
-st.page_link("pages/openai_chat.py", label="OpenAI Chat", icon=":material/face_2:")
-st.page_link("pages/free_chat.py", label="Free AI Chat", icon=":material/robot_2:")
-st.page_link("pages/gemini_image.py", label="Gemini Image", icon=":material/wand_stars:")
+pg = st.navigation(pages)
+pg.run()

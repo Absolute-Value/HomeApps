@@ -7,15 +7,16 @@ from google import genai
 from google.genai import types
 from datetime import datetime
 
+PAGE_TITLE = "Free AI Chat"
 DATABASE_NAME = "/data/free_chat_history.db"
 
 st.set_page_config(
-    page_title="Free AI Chat",
-    page_icon="💬",
+    page_title=PAGE_TITLE,
+    page_icon=":material/chat:",
     initial_sidebar_state="expanded",
     layout="wide",
 )
-st.title("Free AI Chat")
+st.title(PAGE_TITLE)
 groq_client = Groq()
 gem_client = genai.Client()
 

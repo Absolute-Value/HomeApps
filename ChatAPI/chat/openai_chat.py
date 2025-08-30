@@ -6,6 +6,7 @@ from openai import OpenAI
 from datetime import datetime
 from PIL import Image
 
+PAGE_TITLE = "OpenAI"
 DATABASE_NAME = "/data/chat_history.db"
 MODEL_OPTIONS = {
     "GPT-4.1-nano": "gpt-4.1-nano",
@@ -18,12 +19,12 @@ MODEL_OPTIONS = {
 model_name_list = list(MODEL_OPTIONS.values())
 
 st.set_page_config(
-    page_title="OpenAI",
-    page_icon="💬",
+    page_title=PAGE_TITLE,
+    page_icon=":material/network_intelligence:",
     initial_sidebar_state="expanded",
     layout="wide",
 )
-st.title("OpenAI")
+st.title(PAGE_TITLE)
 
 client = OpenAI()
 

@@ -6,6 +6,7 @@ from PIL import Image
 from io import BytesIO
 from datetime import datetime
 
+PAGE_TITLE = "Gemini 画像 (生成/認識)"
 MODEL_OPTIONS = {
     "Gemini-2.5-Flash-Lite": "gemini-2.5-flash-lite-preview-06-17",
     "Gemini-2.5-Flash": "gemini-2.5-flash",
@@ -15,12 +16,12 @@ MODEL_OPTIONS = {
 model_name_list = list(MODEL_OPTIONS.values())
 
 st.set_page_config(
-    page_title="Gemini 画像(生成/認識)",
-    page_icon="🌈",
+    page_title=PAGE_TITLE,
+    page_icon=":material/image:",
     initial_sidebar_state="expanded",
     layout="wide",
 )
-st.title("Gemini 画像")
+st.title(PAGE_TITLE)
 
 client = genai.Client()
 
