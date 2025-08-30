@@ -22,10 +22,11 @@ STOPS = {
     '旅籠町': "00460065",
     'ザザシティ前': "00460064",
 }
+stops_list = list(STOPS.keys())
 
 st.set_page_config(
     page_title=PAGE_TITLE,
-    page_icon=':bus:',
+    page_icon=':material/directions_bus:',
     layout='wide'
 )
 st.title(PAGE_TITLE)
@@ -39,30 +40,36 @@ if "today" not in st.session_state:
 if 'indexes' not in st.session_state:
     st.session_state['indexes'] = [1,0]
 
-col1, col2, col3 = st.columns(3, vertical_alignment="bottom")
-
-with col1:
-    departure_busstop = st.selectbox(
+@st.fragment
+def station_form():
+    container = st.container(horizontal=True, horizontal_alignment="left", vertical_alignment="center")
+    st.session_state['indexes'][0] = container.selectbox(
         "出発",
-        STOPS,
+        list(range(len(stops_list))),
+        format_func=lambda option: stops_list[int(option)],
         index=st.session_state['indexes'][0],
+        label_visibility="collapsed",
+        width=200
     )
-with col2:
-    arrival_busstop = st.selectbox(
+    container.text('から')
+    st.session_state['indexes'][1] = container.selectbox(
         "到着",
-        STOPS,
+        list(range(len(stops_list))),
+        format_func=lambda option: stops_list[int(option)],
         index=st.session_state['indexes'][1],
+        label_visibility="collapsed",
+        width=200
     )
-with col3:
-    if st.button(":left_right_arrow:"):
+    if container.button("<->"):
         st.session_state['indexes'].reverse()
-        st.rerun()
+        st.rerun(scope="fragment")
+station_form()
+
+departure_busstop = stops_list[int(st.session_state['indexes'][0])]
+arrival_busstop = stops_list[int(st.session_state['indexes'][1])]
 from_to = f'{departure_busstop}_{arrival_busstop}'
 
-if st.button("更新"):
-    st.rerun()
-
-if departure_busstop != arrival_busstop:
+if st.button("検索") and departure_busstop != arrival_busstop:
     params = {
         "departure-busstop": STOPS[departure_busstop],
         "arrival-busstop": STOPS[arrival_busstop],
