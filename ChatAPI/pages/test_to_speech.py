@@ -4,7 +4,7 @@ from groq import Groq
 PAGE_TITLE = "Text To Speech"
 st.set_page_config(
     page_title=PAGE_TITLE,
-    page_icon=":material/record_voice_over:",
+    page_icon=":material/text_to_speech:",
     initial_sidebar_state="expanded",
     layout="wide",
 )
