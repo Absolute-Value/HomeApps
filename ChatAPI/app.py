@@ -7,7 +7,7 @@ pages = {
         st.Page("chat/openai_chat.py", title="OpenAI Chat", icon=":material/network_intelligence:"),
     ],
     "タスク": [
-        st.Page("task/translate.py", title="翻訳", icon=":material/translate:"),
+        st.Page("task/qa.py", title="一問一答", icon=":material/mark_chat_read:"),
     ],
     "音声": [
         st.Page("audio/text_to_speech.py", title="音声合成", icon=":material/text_to_speech:"),
