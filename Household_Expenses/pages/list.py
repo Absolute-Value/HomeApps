@@ -3,17 +3,18 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
+PAGE_TITLE = "一覧ページ"
 IMAGES_DIR = "/data/done"
 DB_PATH = "/data/expenses.db"
 
 st.set_page_config(
-    page_title="一覧ページ",
-    page_icon=":receipt:",
+    page_title=PAGE_TITLE,
+    page_icon=":material/list_alt:",
     layout="wide",
 )
 
 def main():
-    st.title(":receipt: 一覧ページ")
+    st.title(PAGE_TITLE)
     
     st.write("ここでは、登録されたレシートの集計結果を表示します。")
     if st.button("更新"):

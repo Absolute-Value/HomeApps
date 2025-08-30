@@ -3,16 +3,17 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
+PAGE_TITLE = "集計ページ"
 DB_PATH = "/data/expenses.db"
 
 st.set_page_config(
-    page_title="集計ページ",
-    page_icon="📊",
+    page_title=PAGE_TITLE,
+    page_icon=":material/bar_chart_4_bars:",
     layout="wide",
 )
 
 def main():
-    st.title("📊 集計ページ")
+    st.title(PAGE_TITLE)
 
     if os.path.exists(DB_PATH):
         conn = sqlite3.connect(DB_PATH)

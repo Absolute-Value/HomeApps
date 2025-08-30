@@ -1,13 +1,10 @@
 import streamlit as st
 
-st.set_page_config(
-    page_title="家計簿アプリ",
-    page_icon=":money_with_wings:",
-    layout="wide",
-)
+pages = [
+    st.Page("pages/upload.py", title="登録", icon=":material/add_a_photo:"),
+    st.Page("pages/list.py", title="一覧", icon=":material/list_alt:"),
+    st.Page("pages/summary.py", title="集計", icon=":material/bar_chart_4_bars:"),
+]
 
-# https://www.webfx.com/tools/emoji-cheat-sheet/
-st.title("家計簿アプリ")
-st.page_link("pages/upload.py", label="登録ページ", icon="📸")
-st.page_link("pages/summary.py", label="集計ページ", icon="📊")
-st.page_link("pages/list.py", label="一覧ページ", icon="🧾")
+pg = st.navigation(pages)
+pg.run()
