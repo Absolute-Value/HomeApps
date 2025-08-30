@@ -6,6 +6,9 @@ pages = {
         st.Page("chat/gemini_image.py", title="Gemini 画像", icon=":material/image:"),
         st.Page("chat/openai_chat.py", title="OpenAI Chat", icon=":material/network_intelligence:"),
     ],
+    "タスク": [
+        st.Page("task/translate.py", title="翻訳", icon=":material/translate:"),
+    ],
     "音声": [
         st.Page("audio/text_to_speech.py", title="音声合成", icon=":material/text_to_speech:"),
         st.Page("audio/speech_to_text.py", title="音声認識", icon=":material/speech_to_text:"),
