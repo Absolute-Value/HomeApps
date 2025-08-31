@@ -43,26 +43,6 @@ def main():
 
         if d.selection.rows:
             selected_id = int(invoice_df.iloc[d.selection.rows[0]].id)
-            invoice_selected = invoice_df[invoice_df["id"] == selected_id].copy()
-            if "請求日" in invoice_selected.columns:
-                invoice_selected["請求日"] = pd.to_datetime(invoice_selected["請求日"], errors="coerce")
-            edited_invoice = st.data_editor(
-                invoice_selected,
-                hide_index=True,
-                disabled=["id", "品目の合計金額", "画像名"],
-                use_container_width=True,
-                key="invoice_editor",
-                column_config={
-                    "品目の合計金額": st.column_config.NumberColumn(min_value=0),
-                    "小計": st.column_config.NumberColumn(min_value=0),
-                    "税金": st.column_config.NumberColumn(min_value=0),
-                    "合計": st.column_config.NumberColumn(min_value=0),
-                    "請求日": st.column_config.DateColumn(
-                        format="YYYY/MM/DD",
-                        help="請求日を選択してください"
-                    )
-                }
-            )
             
             conn = sqlite3.connect(DB_PATH)
             item_df = pd.read_sql_query(f"SELECT id, 品名, 金額, 単位 FROM items WHERE invoice_id = {selected_id}", conn)
@@ -73,12 +53,38 @@ def main():
             image_path = os.path.join(IMAGES_DIR, image_name)
             if os.path.exists(image_path):
                 col1, col2 = st.columns(2)
-                with col2:
-                    st.image(image_path, use_container_width=True)
+                col2.image(image_path, use_container_width=True)
             else:
                 col1 = st.columns(1)
 
-            with col1:
+            with col1.form("edit_form", border=False):
+                invoice_selected = invoice_df[invoice_df["id"] == selected_id].copy()
+                # カラム名と値を取得して表示
+                new_dict = {}
+                for col in invoice_selected.columns:
+                    col_name, col_val = st.columns([1,3])
+                    value = invoice_selected.iloc[0][col]
+                    col_name.write(col)
+
+                    disabled = False
+                    if col in ["id", "品目の合計金額", "画像名"]:
+                        disabled = True
+                    if col == "請求日":
+                        new_dict[col] = col_val.date_input(col, value=value, label_visibility="collapsed")
+                    elif col in ["id", "品目の合計金額", "小計", "税金", "合計"]:
+                        init = None
+                        if value:
+                            init = int(value)
+                        new_dict[col] = col_val.number_input(col, value=init, min_value=0, label_visibility="collapsed", disabled=disabled)
+                    elif col in "店名":
+                        shop_counts = invoice_df["店名"].value_counts()
+                        options = [value] + shop_counts[shop_counts >= 4].index.tolist()
+                        new_dict[col] = col_val.selectbox(col, index=0, options=options, label_visibility="collapsed", accept_new_options=True)
+                    elif col in "店の受取人":
+                        options = [value] + list(set(invoice_df.loc[invoice_df["店名"] == invoice_selected.iloc[0]["店名"], col].values.tolist()))
+                        new_dict[col] = col_val.selectbox(col, index=0, options=options, label_visibility="collapsed", accept_new_options=True)
+                    else:
+                        new_dict[col] = col_val.text_input(col, value=value, label_visibility="collapsed", disabled=disabled)
                 edited_item = st.data_editor(
                     item_df,
                     hide_index=True,
@@ -96,7 +102,7 @@ def main():
                 total = edited_item["金額"].sum()
                 st.write(f"品目の合計金額: {total} 円")
 
-                if st.button("変更を保存"):
+                if st.form_submit_button("変更を保存"):
                     conn = sqlite3.connect(DB_PATH)
                     for idx, row in edited_item.iterrows():
                         if pd.isnull(row["id"]):
@@ -117,17 +123,16 @@ def main():
                     deleted_ids = original_ids - edited_ids
                     for del_id in deleted_ids:
                         conn.execute("DELETE FROM items WHERE id = ?", (del_id,))
-                    row = edited_invoice.iloc[0]
                     conn.execute(
                         "UPDATE invoices SET 店名 = ?, 店の受取人 = ?, 店の住所 = ?, 請求日 = ?, 小計 = ?, 税金 = ?, 合計 = ?, 品目の合計金額 = ? WHERE id = ?",
                         (
-                            row["店名"],
-                            row["店の受取人"],
-                            row["店の住所"],
-                            row["請求日"].strftime("%Y-%m-%d") if pd.notnull(row["請求日"]) else None,
-                            row["小計"],
-                            row["税金"],
-                            row["合計"],
+                            new_dict["店名"],
+                            new_dict["店の受取人"],
+                            new_dict["店の住所"],
+                            new_dict["請求日"].strftime("%Y-%m-%d"),
+                            new_dict["小計"],
+                            new_dict["税金"],
+                            new_dict["合計"],
                             total,
                             selected_id
                         )
