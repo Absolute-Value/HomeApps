@@ -67,7 +67,7 @@ services:
       - expenses-app
       - bus-app
       - oauth2-proxy
-    restart: always
+    restart: unless-stopped
 
   oauth2-proxy:
     container_name: oauth2-proxy
@@ -80,6 +80,7 @@ services:
       - ./nginx/oauth2_proxy.env
     volumes:
       - ./nginx/allowed_emails.txt:/etc/oauth2_proxy/allowed_emails.txt:ro
+    restart: unless-stopped
 
   certbot:
     image: certbot/certbot
@@ -87,3 +88,4 @@ services:
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
+    restart: unless-stopped
