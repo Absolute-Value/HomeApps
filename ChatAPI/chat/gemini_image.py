@@ -71,19 +71,18 @@ with st.sidebar:
 
     st.subheader(":speech_balloon: チャット一覧")
     for chat_id, title, ask in load_chat_asks():
-        col1, col2 = st.columns([5, 1], vertical_alignment="center")
-        with col1:
-            if title is None:
-                title = ask
-            if st.button(title, key=f"title_{chat_id}"):
-                st.session_state.chat_id = chat_id
-                st.rerun()
-        with col2:
-            if st.button("🗑️", key=f"delete_{chat_id}"):
-                delete_chat(chat_id)
-                if st.session_state.chat_id == chat_id:
-                    st.session_state.chat_id = None
-                st.rerun()
+        chat_container = st.container(horizontal=True, horizontal_alignment="right", gap="small", vertical_alignment="center")
+        col1, col2 = chat_container.columns([6, 1], vertical_alignment="center", gap=None)
+        if title is None:
+            title = ask
+        if col1.button(title, key=f"title_{chat_id}", type="tertiary", width="stretch"):
+            st.session_state.chat_id = chat_id
+            st.rerun()
+        if col2.button(":material/delete:", key=f"delete_{chat_id}", type="tertiary", width="stretch"):
+            delete_chat(chat_id)
+            if st.session_state.chat_id == chat_id:
+                st.session_state.chat_id = None
+            st.rerun()
 
 if prompt := st.chat_input("画像ありで画像認識、画像なしで画像生成を行います。", accept_file=True):
     with st.chat_message("user"):
