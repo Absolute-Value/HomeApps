@@ -30,9 +30,9 @@ def create_new_chat_id(c):
     else:
         return int(result[0]) + 1
 
-def save_chat_and_message(c, conn, chat_id, user_message, image=None, model_id=None):
+def save_chat_and_message(c, conn, chat_id, user_message, image=None, model_id=None, chat_title="新しいチャット"):
     now = datetime.now().isoformat()
-    c.execute("INSERT INTO chats (title, used_at, last_model_id) VALUES (?, ?, ?)", ("新しいチャット", now, model_id))
+    c.execute("INSERT INTO chats (title, used_at, last_model_id) VALUES (?, ?, ?)", (chat_title, now, model_id))
     c.execute("INSERT INTO messages (chat_id, role, content, image, model_id) VALUES (?, ?, ?, ?, ?)", (chat_id, "user", user_message, image, model_id))
     conn.commit()
 
@@ -247,15 +247,19 @@ def main():
                     chat_history.append(types.UserContent(parts=[types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")]))
                 else:
                     st.error("選択中のモデルは画像に対応していません。")
-            # 新規チャットか既存チャットかで保存処理を分岐
+            ask_text = prompt.text
             if st.session_state.is_new_chat:
-                save_chat_and_message(c, conn, chat_id, prompt.text, image_bytes, st.session_state.free_model_id)
+                if len(ask_text) > 20:
+                    chat_title = generate_title(gen_client, ask_text)
+                else:
+                    chat_title = ask_text
+                save_chat_and_message(c, conn, chat_id, ask_text, image_bytes, st.session_state.free_model_id, chat_title)
                 st.session_state.is_new_chat = False
             else:
-                add_message(c, conn, chat_id, "user", prompt.text, image_bytes, st.session_state.free_model_id)
+                add_message(c, conn, chat_id, "user", ask_text, image_bytes, st.session_state.free_model_id)
             messages.append({
                 "role": "user",
-                "content": prompt.text,
+                "content": ask_text,
                 "image": image_bytes
             })
 
@@ -263,7 +267,7 @@ def main():
             with st.chat_message("user"):
                 col1, col2 = st.columns([0.99, 0.01], vertical_alignment="center")
                 with col1:
-                    st.text(prompt.text)
+                    st.text(ask_text)
                     if image_bytes:
                         st.image(image_bytes)
                 with col2:
@@ -281,7 +285,7 @@ def main():
                     model=model_name,
                     history=chat_history,
                 )
-                response = chat.send_message_stream(prompt.text)
+                response = chat.send_message_stream(ask_text)
             else:
                 processed_messages = []
                 for m in messages:
@@ -329,13 +333,6 @@ def main():
             if resoning_text:
                 add_message(c, conn, chat_id, "reasoning", resoning_text, None, st.session_state.free_model_id)
             add_message(c, conn, chat_id, "assistant", response_text, None, st.session_state.free_model_id)
-
-            # デフォルトタイトルなら要約して更新
-            c.execute("SELECT title FROM chats WHERE id = ?", (chat_id,))
-            current_title = c.fetchone()[0]
-            if current_title == "新しいチャット":
-                new_title = generate_title(gen_client, prompt)
-                update_chat_title(c, conn, chat_id, new_title)
 
             st.rerun()
     else:
