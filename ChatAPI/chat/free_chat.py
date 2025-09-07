@@ -2,8 +2,10 @@
 
 import io
 import wave
+import base64
 import sqlite3
 import streamlit as st
+from PIL import Image
 from groq import Groq
 from google import genai
 from google.genai import types
@@ -17,8 +19,8 @@ def load_chats(c):
     return [list(row) for row in c.fetchall()]
 
 def load_messages(c, chat_id):
-    c.execute("SELECT id, role, content, model_id FROM messages WHERE chat_id = ? ORDER BY id", (chat_id,))
-    return [{"id": row[0], "role": row[1], "content": row[2], "model_id": row[3]} for row in c.fetchall()]
+    c.execute("SELECT id, role, content, image, model_id FROM messages WHERE chat_id = ? ORDER BY id", (chat_id,))
+    return [{"id": row[0], "role": row[1], "content": row[2], "image": row[3], "model_id": row[4]} for row in c.fetchall()]
 
 def create_new_chat_id(c):
     c.execute("SELECT seq FROM sqlite_sequence WHERE name='chats'")
@@ -28,10 +30,10 @@ def create_new_chat_id(c):
     else:
         return int(result[0]) + 1
 
-def save_chat_and_message(c, conn, chat_id, user_message, model_id=None):
+def save_chat_and_message(c, conn, chat_id, user_message, image=None, model_id=None):
     now = datetime.now().isoformat()
     c.execute("INSERT INTO chats (title, used_at, last_model_id) VALUES (?, ?, ?)", ("新しいチャット", now, model_id))
-    c.execute("INSERT INTO messages (chat_id, role, content, model_id) VALUES (?, ?, ?, ?)", (chat_id, "user", user_message, model_id))
+    c.execute("INSERT INTO messages (chat_id, role, content, image, model_id) VALUES (?, ?, ?, ?, ?)", (chat_id, "user", user_message, image, model_id))
     conn.commit()
 
 def update_chat_title(c, conn, chat_id, new_title):
@@ -43,10 +45,10 @@ def delete_chat(c, conn, chat_id):
     c.execute("DELETE FROM messages WHERE chat_id = ?", (chat_id,))
     conn.commit()
 
-def add_message(c, conn, chat_id, role, content, model_id=None):
+def add_message(c, conn, chat_id, role, content, image=None, model_id=None):
     now = datetime.now().isoformat()
     c.execute("UPDATE chats SET used_at = ?, last_model_id = ? WHERE id = ?", (now, model_id, chat_id))
-    c.execute("INSERT INTO messages (chat_id, role, content, model_id) VALUES (?, ?, ?, ?)", (chat_id, role, content, model_id))
+    c.execute("INSERT INTO messages (chat_id, role, content, image, model_id) VALUES (?, ?, ?, ?, ?)", (chat_id, role, content, image, model_id))
     conn.commit()
 
 def delete_message(c, conn, message_id, now_chat_id):
@@ -117,6 +119,7 @@ def main():
         chat_id INTEGER,
         role TEXT,
         content TEXT,
+        image BLOB,
         model_id INTEGER,
         FOREIGN KEY(chat_id) REFERENCES chats(id),
         FOREIGN KEY(model_id) REFERENCES models(id)
@@ -136,6 +139,9 @@ def main():
     model_rows = c.fetchall()
     model_names = [row[0] for row in model_rows]
     model_displays = [row[1] for row in model_rows]
+
+    c.execute("SELECT id FROM models WHERE image = 1")
+    image_model_ids = [row[0] for row in c.fetchall()]
 
     with st.sidebar:
         if st.button(":heavy_plus_sign: 新しいチャット"):
@@ -211,31 +217,55 @@ def main():
                     col1, col2 = st.columns([0.99, 0.01], vertical_alignment="center")
                     with col1:
                         st.text(msg["content"])
+                        if msg["image"]: # 画像がある場合は表示
+                            if st.session_state.free_model_id in image_model_ids:
+                                image = Image.open(io.BytesIO(msg["image"]))
+                                chat_history.append(types.UserContent(parts=[types.Part.from_bytes(data=msg["image"], mime_type="image/jpeg")]))
+                                st.image(image)
+                            else:
+                                st.error("選択中のモデルは画像に対応していません。")
                     with col2:
                         if st.button(":material/delete:", key=f"user_{msg['id']}"):
                             st.session_state.now_message_id = msg["id"]
                             st.rerun()
             msg.pop("model_id", None)
             msg.pop("id", None)
-        messages = [msg for msg in messages if msg.get("role") != "reasoning"]
 
-        if prompt := st.chat_input("質問してみましょう"):
+        if prompt := st.chat_input("質問してみましょう", accept_file=True):
+            image_bytes = None
+            if prompt["files"]:
+                if st.session_state.free_model_id in image_model_ids:
+                    image_file = prompt["files"][0]
+                    image = Image.open(image_file)
+                    if image.width > 1920 or image.height > 1920:
+                        image.thumbnail((1920, 1920))
+                    image_bytes = io.BytesIO()
+                    if image.mode == "RGBA":
+                        image = image.convert("RGB")
+                    image.save(image_bytes, format="JPEG")
+                    image_bytes = image_bytes.getvalue()
+                    chat_history.append(types.UserContent(parts=[types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")]))
+                else:
+                    st.error("選択中のモデルは画像に対応していません。")
             # 新規チャットか既存チャットかで保存処理を分岐
             if st.session_state.is_new_chat:
-                save_chat_and_message(c, conn, chat_id, prompt, st.session_state.free_model_id)
+                save_chat_and_message(c, conn, chat_id, prompt.text, image_bytes, st.session_state.free_model_id)
                 st.session_state.is_new_chat = False
             else:
-                add_message(c, conn, chat_id, "user", prompt, st.session_state.free_model_id)
+                add_message(c, conn, chat_id, "user", prompt.text, image_bytes, st.session_state.free_model_id)
             messages.append({
                 "role": "user",
-                "content": prompt,
+                "content": prompt.text,
+                "image": image_bytes
             })
 
             # ユーザーメッセージ表示
             with st.chat_message("user"):
                 col1, col2 = st.columns([0.99, 0.01], vertical_alignment="center")
                 with col1:
-                    st.text(prompt)
+                    st.text(prompt.text)
+                    if image_bytes:
+                        st.image(image_bytes)
                 with col2:
                     if st.button(":material/delete:", key=f"user_{len(messages)}"):
                         st.session_state.now_message_id = len(messages)
@@ -251,11 +281,28 @@ def main():
                     model=model_name,
                     history=chat_history,
                 )
-                response = chat.send_message_stream(prompt)
+                response = chat.send_message_stream(prompt.text)
             else:
+                processed_messages = []
+                for m in messages:
+                    if m["image"] and st.session_state.free_model_id in image_model_ids: # 画像付きメッセージの場合
+                        processed_messages.append({
+                            "role": m["role"],
+                            "content": [
+                                {"type": "text", "text": m["content"]},
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64.b64encode(m['image']).decode('utf-8')}"}}
+                            ]
+                        })
+                    elif m["role"] != "reasoning": # テキストのみのメッセージの場合
+                        processed_messages.append({
+                            "role": m["role"],
+                            "content": [
+                                {"type": "text", "text": m["content"]}
+                            ]
+                        })
                 response = groq_client.chat.completions.create(
                     model=model_name,
-                    messages=messages,
+                    messages=processed_messages,
                     stream=True,
                 )
             resoning_text = ""
@@ -280,8 +327,8 @@ def main():
                             reasoning_placeholder.caption(resoning_text)
                     
             if resoning_text:
-                add_message(c, conn, chat_id, "reasoning", resoning_text, st.session_state.free_model_id)
-            add_message(c, conn, chat_id, "assistant", response_text, st.session_state.free_model_id)
+                add_message(c, conn, chat_id, "reasoning", resoning_text, None, st.session_state.free_model_id)
+            add_message(c, conn, chat_id, "assistant", response_text, None, st.session_state.free_model_id)
 
             # デフォルトタイトルなら要約して更新
             c.execute("SELECT title FROM chats WHERE id = ?", (chat_id,))
