@@ -3,7 +3,7 @@ import streamlit as st
 pages = {
     "チャット": [
         st.Page("chat/free_chat.py", title="Free AI Chat", icon=":material/chat:"),
-        st.Page("chat/gemini_image.py", title="Gemini 画像", icon=":material/image:"),
+        st.Page("chat/gemini_image.py", title="Gemini 画像生成", icon=":material/image:"),
         st.Page("chat/openai_chat.py", title="OpenAI Chat", icon=":material/network_intelligence:"),
     ],
     "タスク": [

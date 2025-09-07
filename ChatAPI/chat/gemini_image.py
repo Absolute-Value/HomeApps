@@ -6,14 +6,7 @@ from PIL import Image
 from io import BytesIO
 from datetime import datetime
 
-PAGE_TITLE = "Gemini 画像 (生成/認識)"
-MODEL_OPTIONS = {
-    "Gemini-2.5-Flash-Lite": "gemini-2.5-flash-lite-preview-06-17",
-    "Gemini-2.5-Flash": "gemini-2.5-flash",
-    "Gemini-2.5-Pro": "gemini-2.5-pro",
-    "Gemma-3-27B": "gemma-3-27b-it",
-}
-model_name_list = list(MODEL_OPTIONS.values())
+PAGE_TITLE = "Gemini 画像生成"
 
 st.set_page_config(
     page_title=PAGE_TITLE,
@@ -66,9 +59,6 @@ with st.sidebar:
         st.session_state.chat_id = None
         st.rerun()
 
-    selected_label = st.selectbox(":gear: モデル選択", list(MODEL_OPTIONS.keys()))
-    model_id = list(MODEL_OPTIONS.keys()).index(selected_label) + 1
-
     st.subheader(":speech_balloon: チャット一覧")
     for chat_id, title, ask in load_chat_asks():
         chat_container = st.container(horizontal=True, horizontal_alignment="right", gap="small", vertical_alignment="center")
@@ -84,7 +74,7 @@ with st.sidebar:
                 st.session_state.chat_id = None
             st.rerun()
 
-if prompt := st.chat_input("画像ありで画像認識、画像なしで画像生成を行います。", accept_file=True):
+if prompt := st.chat_input("画像生成したいプロンプトを入力...", accept_file=True):
     with st.chat_message("user"):
         ask_text = prompt.text
         st.markdown(ask_text)
@@ -93,11 +83,11 @@ if prompt := st.chat_input("画像ありで画像認識、画像なしで画像�
         else:
             title = None
 
+        contents = [ask_text]
         if prompt["files"]:
             image = prompt["files"][0]
             image_bytes = image.read()
             st.image(image)
-            model = model_name_list[model_id - 1]
             contents=[
                 types.Part.from_bytes(
                     data=image_bytes,
@@ -105,19 +95,14 @@ if prompt := st.chat_input("画像ありで画像認識、画像なしで画像�
                 ),
                 ask_text
             ]
-            config = None
-        else:
-            model_id = 0
-            model = "gemini-2.0-flash-preview-image-generation"
-            contents = (ask_text)
-            config=types.GenerateContentConfig(
-                response_modalities=['TEXT', 'IMAGE']
-            )
-            image = None
+        model_id = 0
+        config=types.GenerateContentConfig(
+            response_modalities=['TEXT', 'IMAGE']
+        )
 
     with st.spinner("Wait for it...", show_time=True):
         response = client.models.generate_content(
-            model=model,
+            model="gemini-2.0-flash-preview-image-generation",
             contents=contents,
             config=config
         )
@@ -133,10 +118,7 @@ if prompt := st.chat_input("画像ありで画像認識、画像なしで画像�
         with st.chat_message("assistant", avatar=':material/wand_stars:'):
             if answer is not None:
                 st.write(answer)
-            if model_id == 0:
-                st.image(image)
-            else:
-                st.badge(model_name_list[model_id - 1])
+            st.image(image)
 
         now = datetime.now().isoformat()
         c = conn.cursor()
@@ -157,7 +139,4 @@ else:
                 st.image(image)
         with st.chat_message("assistant", avatar=':material/wand_stars:'):
             st.write(answer)
-            if mode == 0:
-                st.image(image)
-            else:
-                st.badge(model_name_list[mode - 1])
+            st.image(image)
