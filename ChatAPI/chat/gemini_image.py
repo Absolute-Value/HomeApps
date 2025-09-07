@@ -40,11 +40,10 @@ CREATE TABLE IF NOT EXISTS messages (
 """)
 conn.commit()
 
-if "chat_id" not in st.session_state:
-    st.session_state.chat_id = None
-
-if "is_new" not in st.session_state:
-    st.session_state.is_new = None
+session_var_list = ["chat_id", "edit_id", "is_new"]
+for session_var in session_var_list:
+    if session_var not in st.session_state:
+        st.session_state[session_var] = None
 
 def load_chats():
     c.execute("SELECT id, title FROM chats ORDER BY used_at DESC")
@@ -103,16 +102,30 @@ with st.sidebar:
     st.subheader(":speech_balloon: チャット一覧")
     for chat_id, title in load_chats():
         chat_container = st.container(horizontal=True, horizontal_alignment="right", gap="small", vertical_alignment="center")
-        col1, col2 = chat_container.columns([6, 1], vertical_alignment="center", gap=None)
-        if col1.button(title, key=f"title_{chat_id}", type="tertiary", width="stretch"):
-            st.session_state.chat_id = chat_id
-            st.session_state.is_new = False
-            st.rerun()
-        if col2.button(":material/delete:", key=f"delete_{chat_id}", type="tertiary", width="stretch"):
-            delete_chat(chat_id)
-            if st.session_state.chat_id == chat_id:
-                st.session_state.chat_id = None
-            st.rerun()
+        if st.session_state.edit_id == chat_id:
+            new_title = chat_container.text_input("タイトル編集", value=title, label_visibility="collapsed", key=f"edit_{chat_id}")
+            icon = ":material/cancel:"
+            if new_title != title:
+                icon = ":material/save:"
+            if chat_container.button(icon, key=f"save_{chat_id}", type="tertiary", width="content"):
+                if new_title != title:
+                    update_chat_title(chat_id, new_title)
+                st.session_state.edit_id = None
+                st.rerun()
+        else:
+            col1, col2, col3 = chat_container.columns([6, 1, 1], vertical_alignment="center", gap=None)
+            if col1.button(title, key=f"title_{chat_id}", type="tertiary", width="stretch"):
+                st.session_state.chat_id = chat_id
+                st.session_state.is_new = False
+                st.rerun()
+            if col2.button(":material/edit:", key=f"edit_{chat_id}", type="tertiary", width="stretch"):
+                st.session_state.edit_id = chat_id
+                st.rerun()
+            if col3.button(":material/delete:", key=f"delete_{chat_id}", type="tertiary", width="stretch"):
+                delete_chat(chat_id)
+                if st.session_state.chat_id == chat_id:
+                    st.session_state.chat_id = None
+                st.rerun()
 
 chat_id = st.session_state.chat_id
 if chat_id:
