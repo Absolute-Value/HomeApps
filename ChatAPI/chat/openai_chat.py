@@ -158,9 +158,8 @@ if chat_id:
         else:
             avatar = None
         with st.chat_message(msg["role"], avatar=avatar):
-            st.markdown(msg["content"])
-            if msg["image"]:
-                # 画像がある場合は表示
+            st.text(msg["content"])
+            if msg["image"]: # 画像がある場合は表示
                 image = Image.open(io.BytesIO(msg["image"]))
                 st.image(image)
             model_name = model_name_list[msg["model_id"]-1]
@@ -200,7 +199,7 @@ if chat_id:
 
         # ユーザーメッセージ表示
         with st.chat_message("user"):
-            st.markdown(prompt.text)
+            st.text(prompt.text)
             if image_bytes:
                 st.image(image_bytes)
 
@@ -208,8 +207,7 @@ if chat_id:
         with st.chat_message("assistant",avatar=":material/face_2:"):
             processed_messages = []
             for m in messages:
-                if m["image"]:
-                    # 画像付きメッセージの場合
+                if m["image"]: # 画像付きメッセージの場合
                     processed_messages.append({
                         "role": m["role"],
                         "content": [
@@ -217,8 +215,7 @@ if chat_id:
                             {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64.b64encode(m['image']).decode('utf-8')}"}}
                         ]
                     })
-                else:
-                    # テキストのみのメッセージの場合
+                else: # テキストのみのメッセージの場合
                     processed_messages.append({
                         "role": m["role"],
                         "content": [
