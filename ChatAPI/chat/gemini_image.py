@@ -127,6 +127,10 @@ with st.sidebar:
                     st.session_state.chat_id = None
                 st.rerun()
 
+if "del_message_id" in st.session_state:
+    delete_message(st.session_state.del_message_id, st.session_state.chat_id)
+st.session_state.del_message_id = None
+
 chat_id = st.session_state.chat_id
 if chat_id:
     contents = []
@@ -141,12 +145,16 @@ if chat_id:
                         st.image(image)
             else:
                 with st.chat_message("user"):
+                    col1, col2 = st.columns([0.99, 0.01], vertical_alignment="center")
                     if msg["image"]:
                         image = Image.open(BytesIO(msg["image"]))
-                        st.image(image)
+                        col1.image(image)
                         contents.append(image)
-                    st.text(msg["content"])
+                    col1.text(msg["content"])
                     contents.append(msg["content"])
+                    if col2.button(":material/delete:", key=f"user_{msg['id']}"):
+                        st.session_state.del_message_id = msg["id"]
+                        st.rerun()
         
     if prompt := st.chat_input("画像生成したいプロンプトを入力...", accept_file=True):
         ask_text = prompt.text
