@@ -53,7 +53,7 @@ def main():
             image_path = os.path.join(IMAGES_DIR, image_name)
             if os.path.exists(image_path):
                 col1, col2 = st.columns(2)
-                col2.image(image_path, use_container_width=True)
+                col2.image(image_path, use_container_width=True, caption=image_name)
             else:
                 col1 = st.columns(1)
 
@@ -62,16 +62,18 @@ def main():
                 # カラム名と値を取得して表示
                 new_dict = {}
                 for col in invoice_selected.columns:
+                    if col in ["画像名", "品目の合計金額"]:
+                        continue
                     col_name, col_val = st.columns([1,3])
                     value = invoice_selected.iloc[0][col]
                     col_name.write(col)
 
                     disabled = False
-                    if col in ["id", "品目の合計金額", "画像名"]:
+                    if col == "id":
                         disabled = True
                     if col == "請求日":
                         new_dict[col] = col_val.date_input(col, value=value, label_visibility="collapsed")
-                    elif col in ["id", "品目の合計金額", "小計", "税金", "合計"]:
+                    elif col in ["id", "小計", "税金", "合計"]:
                         init = None
                         if value:
                             init = int(value)
@@ -100,7 +102,9 @@ def main():
                     column_order=["品名", "金額", "単位"]
                 )
                 total = edited_item["金額"].sum()
-                st.write(f"品目の合計金額: {total} 円")
+                col_name, col_val = st.columns([1,3])
+                col_name.write("品目の合計金額")
+                col_val.number_input("品目の合計金額", value=int(total), min_value=0, label_visibility="collapsed", disabled=True)
 
                 if st.form_submit_button("変更を保存"):
                     conn = sqlite3.connect(DB_PATH)
