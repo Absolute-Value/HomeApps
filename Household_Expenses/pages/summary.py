@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import pandas as pd
+import altair as alt
 import streamlit as st
 
 PAGE_TITLE = "集計ページ"
@@ -20,21 +21,45 @@ def main():
         invoice_df = pd.read_sql_query("SELECT * FROM invoices", conn)
         conn.close()
         
+        with st.expander("店名ごとの回数ランキング（上位20件）", icon=":material/store:", expanded=True):
+            shop_count = invoice_df['店名'].value_counts().reset_index()
+            shop_count.columns = ['店名', '回数']
+            shop_count = shop_count.sort_values('回数', ascending=False)
+            top20 = shop_count.head(20)
+
+            chart = (
+                alt.Chart(top20)
+                .mark_bar()
+                .encode(
+                    x=alt.X('回数:Q'),
+                    y=alt.Y('店名:N', sort=top20['店名'].tolist())  # ← 並び順を固定
+                )
+                .properties(height=600)
+            )
+            st.altair_chart(chart, use_container_width=True)
+
         # 店名ごとの合計金額を集計し、上位20個の項目について棒グラフを表示
-        if '店名' in invoice_df.columns and '合計' in invoice_df.columns:
+        with st.expander("店名ごとの合計金額（上位20件）", icon=":material/point_of_sale:"):
             shop_summary = invoice_df.groupby('店名')['合計'].sum().reset_index()
             shop_summary = shop_summary.sort_values('合計', ascending=False)
             top20 = shop_summary.head(20)
             
-            st.subheader("店名ごとの合計金額（上位20件）")
-            st.bar_chart(top20.set_index('店名'), horizontal=True, height=600)
-        # 年月（YY/MM）ごとの合計金額を集計し、折れ線グラフを表示
-        if '請求日' in invoice_df.columns and '合計' in invoice_df.columns:
+            chart = (
+                alt.Chart(top20)
+                .mark_bar()
+                .encode(
+                    x=alt.X('合計:Q'),
+                    y=alt.Y('店名:N', sort=top20['店名'].tolist())  # ← 並び順を固定
+                )
+                .properties(height=600)
+            )
+            st.altair_chart(chart, use_container_width=True)
+
+        with st.expander("年月（YY/MM）ごとの合計金額（棒グラフ）", icon=":material/calendar_month:", expanded=True):
             invoice_df['年月'] = pd.to_datetime(invoice_df['請求日']).dt.strftime('%y/%m')
             ym_summary = invoice_df.groupby('年月')['合計'].sum().reset_index()
             ym_summary = ym_summary.sort_values('年月')
 
-            st.subheader("年月（YY/MM）ごとの合計金額（棒グラフ）")
             st.line_chart(ym_summary.set_index('年月'))
             selected_ym = st.selectbox("年月を選択してください", ym_summary['年月'][::-1])
 
