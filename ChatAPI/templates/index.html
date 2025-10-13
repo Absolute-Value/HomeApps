@@ -39,7 +39,7 @@
         {% endfor %}
       </div>
       <form id="chat-form" class="w-96 d-flex bg-body-tertiary rounded-5 m-3" method="post" action="javascript:void(0);" style="flex-shrink: 0;">
-        <input id="user_input" name="user_input" class="form-control border-0 bg-body-tertiary" type="text" placeholder="質問してみましょう" aria-label="質問してみましょう" required>
+        <textarea id="user_input" name="user_input" class="form-control border-0 bg-body-tertiary" rows="1" style="resize:none; overflow-y:auto;" placeholder="質問してみましょう" aria-label="質問してみましょう" required></textarea>
         <button id="send-btn" type="submit" class="btn btn-secondary rounded-5">
           <span class="bi bi-send"></span>
         </button>

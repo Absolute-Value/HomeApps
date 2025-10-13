@@ -1,3 +1,23 @@
+// textareaのEnter送信・自動リサイズ処理
+document.addEventListener('DOMContentLoaded', function() {
+  const textarea = document.getElementById('user_input');
+  if (textarea) {
+    textarea.addEventListener('keydown', function(e) {
+      // IME変換中は送信しない
+      if (e.isComposing) return;
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById('send-btn').click();
+      }
+    });
+    textarea.addEventListener('input', function() {
+      this.rows = 1;
+      const lines = this.value.split('\n').length;
+      this.rows = Math.min(lines, 3);
+      this.style.overflowY = lines > 3 ? 'scroll' : 'auto';
+    });
+  }
+});
 function appendMessage(content, role='assistant'){
   const chatMain = document.querySelector('.chat-main') || document.querySelector('main');
 
@@ -15,7 +35,7 @@ function appendMessage(content, role='assistant'){
   rendered.className = 'rendered-markdown';
 
   if(role === 'user'){
-    rendered.textContent = content;
+    rendered.innerHTML = content.replace(/\n/g, '<br>');
   } else {
     // assistant may contain markdown/html
     const md = content;
@@ -47,7 +67,7 @@ document.querySelectorAll('.message-item').forEach(item => {
       const md = raw.textContent || '';
       console.log('Rendering saved message, role=', role, 'md=', md.slice(0,80));
       if (role === 'user') {
-        target.textContent = md;
+        target.innerHTML = md.replace(/\n/g, '<br>');
       } else if (typeof marked !== 'undefined') {
         const html = marked.parse(md);
         const safe = (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(html) : html;
