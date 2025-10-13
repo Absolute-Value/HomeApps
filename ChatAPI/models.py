@@ -1,8 +1,9 @@
-from sqlalchemy import Column, Integer, String, create_engine
+from sqlalchemy import Column, Integer, String, BLOB, Boolean, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
+from sqlalchemy import ForeignKey
 
 Base = declarative_base()
-DATABASE_URL = "sqlite:///../data/chat_hisory.db"
+DATABASE_URL = "sqlite:///../data/free_chat.db"
 
 class chats(Base):
   __tablename__ = 'chats'
@@ -11,10 +12,19 @@ class chats(Base):
 
 class messages(Base):
   __tablename__ = 'messages'
-  id = Column(Integer, primary_key=True, index=True)
-  chat_id = Column(String)
+  id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+  chat_id = Column(String, ForeignKey('chats.id'))
   role = Column(String)
   content = Column(String)
+  image = Column(BLOB, nullable=True)
+  model_id = Column(Integer, ForeignKey('models.id'))
+
+class models(Base):
+  __tablename__ = 'models'
+  id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+  name = Column(String)
+  display = Column(String)
+  image = Column(Boolean, default=False)
 
 def get_engine():
   return create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
@@ -25,9 +35,8 @@ def create_db_and_tables():
   engine = get_engine()
   Base.metadata.create_all(bind=engine)
 
-def save_chat_and_message(chat_id: str, title: str, role: str, content: str):
+def save_chat_and_message(chat_id: str, title: str, role: str, content: str, image: bytes = None, model_id: int = None):
   db: Session = SessionLocal()
-  # Create chat only if it doesn't already exist (upsert-like)
   db_chat = db.query(chats).filter(chats.id == chat_id).first()
   if not db_chat:
     db_chat = chats(id=chat_id, title=title)
@@ -36,7 +45,7 @@ def save_chat_and_message(chat_id: str, title: str, role: str, content: str):
     db.refresh(db_chat)
 
   # Always insert the message
-  db_message = messages(chat_id=chat_id, role=role, content=content)
+  db_message = messages(chat_id=chat_id, role=role, content=content, image=image, model_id=model_id)
   db.add(db_message)
   db.commit()
   db.refresh(db_message)
