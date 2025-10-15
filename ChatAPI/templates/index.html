@@ -10,23 +10,30 @@
 </head>
 <body>
   <div class="d-flex w-100">
-    <nav class="bg-secondary-subtle vh-100 p-3 overflow-auto" style="width: 260px;">
-      <button class="btn btn-dark w-100 mb-3 rounded-5" onclick="location.href='/'">
-        <i class="bi bi-plus-lg"></i> 新しいチャット
-      </button>
-      <h5 class="text-light">モデル選択</h5>
-      <h5 class="text-light">チャット一覧</h5>
-      {% for chat in chats %}
-        <div class="d-flex align-items-center mb-2">
-          <button class="btn btn-secondary-subtle flex-grow-1 text-start rounded-5" onclick="location.href='/c/{{ chat.id }}'">
-            {{ chat.title }}
-          </button>
-          <button class="btn btn-outline-danger rounded-5 border-0" onclick="location.href='/delete/{{ chat.id }}'">
-            <i class="bi bi-trash"></i>
-          </button>
-        </div>
-      {% endfor %}
+    <nav class="bg-secondary-subtle vh-100 p-3 overflow-auto offcanvas offcanvas-start" tabindex="-1" id="sidebarOffcanvas" aria-labelledby="sidebarLabel" style="width: 260px;">
+      <div class="offcanvas-body p-0">
+        <button class="btn btn-dark w-100 mb-3 rounded-5" onclick="location.href='/'">
+          <i class="bi bi-plus-lg"></i> 新しいチャット
+        </button>
+        <h5 class="text-secondary fs-6">チャット一覧</h5>
+        {% for chat in chats %}
+          <div class="d-flex align-items-center mb-2">
+            <button class="btn btn-outline-light border-0 flex-grow-1 text-start rounded-3" onclick="location.href='/c/{{ chat.id }}'">
+              {{ chat.title }}
+            </button>
+            <button class="btn btn-outline-secondary border-0 rounded-5" onclick="location.href='/delete/{{ chat.id }}'">
+              <i class="bi bi-trash3"></i>
+            </button>
+          </div>
+        {% endfor %}
+      </div>
     </nav>
+
+    <div class="p-2 position-fixed start-0 top-0 z-3">
+      <button class="btn btn-secondary rounded-5" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas" aria-controls="sidebarOffcanvas">
+        <i class="bi bi-list"></i>
+      </button>
+    </div>
     <main class="flex-grow-1 d-flex flex-column vh-100 overflow-hidden">
       <div class="chat-main p-3 flex-grow-1 overflow-y-auto">
         {% for message in messages %}

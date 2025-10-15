@@ -35,7 +35,7 @@ def create_db_and_tables():
   engine = get_engine()
   Base.metadata.create_all(bind=engine)
 
-def save_chat_and_message(chat_id: str, title: str, role: str, content: str, image: bytes = None, model_id: int = None):
+def save_chat_and_message(chat_id: str, title: str, role: str, content: str, image: bytes = None, model_id: int = 1):
   db: Session = SessionLocal()
   db_chat = db.query(chats).filter(chats.id == chat_id).first()
   if not db_chat:
