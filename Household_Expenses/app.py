@@ -1,10 +1,270 @@
-import streamlit as st
+import os
+import shutil
+import pandas as pd
+from uuid import uuid4
+from fastapi import FastAPI, Request, UploadFile, File, Form, BackgroundTasks
+from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from azure.core.credentials import AzureKeyCredential
+from azure.ai.documentintelligence import DocumentIntelligenceClient
+from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
+import aiosqlite
 
-pages = [
-    st.Page("pages/upload.py", title="登録", icon=":material/add_a_photo:"),
-    st.Page("pages/list.py", title="一覧", icon=":material/list_alt:"),
-    st.Page("pages/summary.py", title="集計", icon=":material/bar_chart_4_bars:"),
-]
+app = FastAPI()
+templates = Jinja2Templates(directory="templates")
 
-pg = st.navigation(pages)
-pg.run()
+DB_PATH = "/data/expenses.db"
+IMAGES_DIR = "/data/done"
+WAIT_DIR = "/data/wait"
+os.makedirs(IMAGES_DIR, exist_ok=True)
+os.makedirs(WAIT_DIR, exist_ok=True)
+
+app.mount("/images", StaticFiles(directory=IMAGES_DIR), name="images")
+
+def initialize_document_intelligence_client():
+    """Document Intelligence クライアントを初期化"""
+    try:
+        client = DocumentIntelligenceClient(
+            endpoint=os.getenv("AZURE_ENDPOINT"),
+            credential=AzureKeyCredential(os.getenv("AZURE_API_KEY"))
+        )
+        return client
+    except Exception as e:
+        print(f"Document Intelligence クライアントの初期化に失敗しました: {str(e)}")
+        return None
+
+async def process_image_ocr(image_path: str, image_name: str):
+    """画像をOCR処理してDBに保存するバックグラウンドタスク"""
+    try:
+        client = initialize_document_intelligence_client()
+        if not client:
+            print(f"クライアント初期化失敗: {image_name}")
+            return
+        
+        with open(image_path, "rb") as f:
+            image_bytes = f.read()
+        
+        poller = client.begin_analyze_document(
+            "prebuilt-invoice",
+            AnalyzeDocumentRequest(bytes_source=image_bytes)
+        )
+        result = poller.result()
+
+        if not result.documents:
+            print(f"OCRの結果を取得できませんでした: {image_name}")
+            return
+
+        invoice = result.documents[0].fields
+
+        database_keys = [
+            "店名", "店の受取人", "店の住所", "請求日", "請求書番号", "品目の合計金額", "小計", "税金", "合計"
+        ]
+        database = {key: "" for key in database_keys}
+        items_rows = []
+        
+        for k, v in invoice.items():
+            if k == "VendorName":
+                database["店名"] = v.get("content", "")
+            elif k == "VendorAddress":
+                database["店の住所"] = v.get("content", "")
+            elif k == "VendorAddressRecipient":
+                database["店の受取人"] = v.get("content", "")
+            elif k == "InvoiceDate":
+                database["請求日"] = v.get("valueDate", "")
+            elif k == "InvoiceId":
+                database["請求書番号"] = v.get("content", "")
+            elif k == "Items":
+                items = v.get("valueArray", [])
+                for item in items:
+                    desc = item.get("valueObject", {}).get("Description", {}).get("content", "")
+                    amount_data = item.get("valueObject", {}).get("Amount", {}).get("valueCurrency", {})
+                    items_rows.append({
+                        "品名": desc,
+                        "金額": amount_data.get("amount", ""),
+                        "単位": amount_data.get("currencyCode", "")
+                    })
+                df = pd.DataFrame(items_rows)
+                database["品目の合計金額"] = df['金額'].apply(pd.to_numeric, errors='coerce').sum()
+            elif k == "SubTotal":
+                data = v.get("valueCurrency", {})
+                database["小計"] = int(data.get("amount", ""))
+            elif k == "TotalTax":
+                data = v.get("valueCurrency", {})
+                database["税金"] = int(data.get("amount", ""))
+            elif k == "InvoiceTotal":
+                data = v.get("valueCurrency")
+                database["合計"] = int(data.get("amount", ""))
+
+        async with aiosqlite.connect(DB_PATH) as conn:
+            cursor = await conn.execute("""
+                INSERT INTO invoices (店名, 店の受取人, 店の住所, 請求日, 請求書番号, 品目の合計金額, 小計, 税金, 合計, 画像名)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                database["店名"],
+                database["店の受取人"],
+                database["店の住所"],
+                database["請求日"],
+                database["請求書番号"],
+                database["品目の合計金額"],
+                database["小計"],
+                database["税金"],
+                database["合計"],
+                image_name
+            ))
+            invoice_id = cursor.lastrowid
+            for row in items_rows:
+                await conn.execute("""
+                    INSERT INTO items (invoice_id, 品名, 金額, 単位)
+                    VALUES (?, ?, ?, ?)
+                """, (
+                    invoice_id,
+                    row.get("品名", ""),
+                    row.get("金額", ""),
+                    row.get("単位", "")
+                ))
+            await conn.commit()
+
+        # 画像をdoneフォルダに移動
+        done_path = os.path.join(IMAGES_DIR, image_name)
+        os.rename(image_path, done_path)
+        print(f"処理完了: {image_name}")
+        
+    except Exception as e:
+        print(f"画像処理エラー ({image_name}): {str(e)}")
+
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
+    invoices = []
+    if os.path.exists(DB_PATH):
+        async with aiosqlite.connect(DB_PATH) as conn:
+            async with conn.execute("SELECT * FROM invoices ORDER BY id DESC") as cursor:
+                rows = await cursor.fetchall()
+                columns = [col[0] for col in cursor.description]
+                invoices = [dict(zip(columns, row)) for row in rows]
+    return templates.TemplateResponse("index.html", {"request": request, "page_title": "家計レシート一覧", "invoices": invoices})
+
+@app.post("/upload")
+async def upload(request: Request, file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
+    # ファイルが選択されているか確認
+    if not file or not file.filename:
+        return RedirectResponse(url="/?error=ファイルが選択されていません", status_code=303)
+    
+    # 画像保存
+    filename = f"{uuid4()}.jpg"
+    save_path = os.path.join(IMAGES_DIR, filename)
+    with open(save_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    background_tasks.add_task(process_image_ocr, save_path, filename)
+    return RedirectResponse(url="/", status_code=303)
+
+@app.get("/images/{image_name}")
+async def get_image(image_name: str):
+    image_path = os.path.join(IMAGES_DIR, image_name)
+    if os.path.exists(image_path):
+        return FileResponse(image_path)
+    return HTMLResponse("画像が見つかりません", status_code=404)
+
+# 編集・保存・削除APIは app 定義の後に記述
+from fastapi import Form
+
+@app.get("/edit/{invoice_id}", response_class=HTMLResponse)
+async def edit_invoice(request: Request, invoice_id: int):
+    invoice = None
+    items = []
+    items_total = 0
+    async with aiosqlite.connect(DB_PATH) as conn:
+        async with conn.execute("SELECT * FROM invoices WHERE id = ?", (invoice_id,)) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                columns = [col[0] for col in cursor.description]
+                invoice = dict(zip(columns, row))
+        async with conn.execute("SELECT * FROM items WHERE invoice_id = ?", (invoice_id,)) as cursor:
+            rows = await cursor.fetchall()
+            columns = [col[0] for col in cursor.description]
+            items = [dict(zip(columns, r)) for r in rows]
+            # 品目の合計金額を計算
+            for row in rows:
+                amount = row[3] if len(row) > 3 else 0  # 金額は4番目のカラム
+                items_total += float(amount) if amount else 0
+    if not invoice:
+        return HTMLResponse("データが見つかりません", status_code=404)
+    return templates.TemplateResponse("edit.html", {"request": request, "invoice": invoice, "items": items, "items_total": items_total})
+
+@app.post("/edit/{invoice_id}")
+async def save_invoice(request: Request, invoice_id: int):
+    form = await request.form()
+    # 品目の更新・追加
+    await update_items(form, invoice_id)
+    # 請求書本体の更新（品目の合計金額を含む）
+    await update_invoice(form, invoice_id)
+    return RedirectResponse(url="/", status_code=303)
+
+# 請求書本体の更新
+async def update_invoice(form, invoice_id):
+    品目の合計金額 = float(form.get("品目の合計金額", 0))
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute("""
+            UPDATE invoices SET 店名=?, 店の受取人=?, 店の住所=?, 請求日=?, 請求書番号=?, 品目の合計金額=?, 小計=?, 税金=?, 合計=? WHERE id=?
+        """, (
+            form.get("店名", ""),
+            form.get("店の受取人", ""),
+            form.get("店の住所", ""),
+            form.get("請求日", ""),
+            form.get("請求書番号", ""),
+            品目の合計金額,
+            float(form.get("小計", 0)),
+            float(form.get("税金", 0)),
+            float(form.get("合計", 0)),
+            invoice_id
+        ))
+        await conn.commit()
+
+# 品目の更新・追加
+async def update_items(form, invoice_id):
+    async with aiosqlite.connect(DB_PATH) as conn:
+        # 既存品目の更新
+        for key in form.keys():
+            if key.startswith("item_") and key.endswith("_品名"):
+                item_id = key.split("_")[1]
+                品名 = form.get(f"item_{item_id}_品名", "")
+                金額 = form.get(f"item_{item_id}_金額", 0)
+                単位 = form.get(f"item_{item_id}_単位", "JPY")
+                await conn.execute("""
+                    UPDATE items SET 品名=?, 金額=?, 単位=? WHERE id=?
+                """, (品名, 金額, 単位, item_id))
+        # 新規品目の追加
+        new_品名 = form.get("new_品名", "")
+        new_金額 = form.get("new_金額", "")
+        new_単位 = form.get("new_単位", "JPY")
+        if new_品名 and new_金額:
+            await conn.execute("""
+                INSERT INTO items (invoice_id, 品名, 金額, 単位) VALUES (?, ?, ?, ?)
+            """, (invoice_id, new_品名, new_金額, new_単位))
+        await conn.commit()
+
+# 品目削除API
+@app.get("/delete_item/{item_id}")
+async def delete_item(request: Request, item_id: int, invoice_id: int):
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute("DELETE FROM items WHERE id=?", (item_id,))
+        await conn.commit()
+    return RedirectResponse(url=f"/edit/{invoice_id}", status_code=303)
+
+@app.get("/delete/{invoice_id}")
+async def delete_invoice(request: Request, invoice_id: int):
+    async with aiosqlite.connect(DB_PATH) as conn:
+        # 画像名を取得
+        async with conn.execute("SELECT 画像名 FROM invoices WHERE id=?", (invoice_id,)) as cursor:
+            row = await cursor.fetchone()
+            image_name = row[0] if row else None
+        # DBから削除
+        await conn.execute("DELETE FROM invoices WHERE id=?", (invoice_id,))
+        await conn.execute("DELETE FROM items WHERE invoice_id=?", (invoice_id,))
+        await conn.commit()
+    # 画像ファイルも削除
+    if image_name:
+        image_path = os.path.join(IMAGES_DIR, image_name)
+        if os.path.exists(image_path):
+            os.remove(image_path)
+    return RedirectResponse(url="/", status_code=303)
