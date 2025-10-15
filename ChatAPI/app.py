@@ -13,9 +13,6 @@ templates = Jinja2Templates(directory="templates")
 
 groq_client = Groq()
 
-def sse_event(data: str) -> bytes:
-    return f"data: {data}\n\n".encode("utf-8")
-
 def generate_title(user_input: str) -> str:
     if len(user_input) < 20:
         return user_input
@@ -31,7 +28,6 @@ def generate_title(user_input: str) -> str:
     return user_input[:20]
 
 async def stream_groq_response(chat_id: str, user_input: str, model_id: int = 1):
-    yield sse_event(f"{{\"event\": \"meta\", \"chat_id\": \"{chat_id}\"}}")
     messages = models.load_messages(chat_id)
     groq_messages = []
     for message in messages:
@@ -55,7 +51,7 @@ async def stream_groq_response(chat_id: str, user_input: str, model_id: int = 1)
         reasoning = chunk.choices[0].delta.reasoning or ""
         reasoning_text += reasoning
         response_text += text
-        yield sse_event(text)
+        yield text
 
     if reasoning_text:
         models.save_chat_and_message(chat_id, "", "reasoning", reasoning_text, model_id=model_id)
@@ -74,15 +70,8 @@ async def read_root(request: Request):
 
 @app.post("/")
 async def chat_endpoint(request: Request):
-    form_data = await request.form()
     chat_id = str(ULID())
-    user_input = form_data['user_input']
-    model_id = form_data['model_select']
-    title = generate_title(user_input)
-    models.save_chat_and_message(chat_id, title, "user", user_input, model_id=model_id)
-
-    generator = stream_groq_response(chat_id, user_input, model_id=model_id)
-    return StreamingResponse(generator, media_type='text/event-stream')
+    return await post_chat(request, chat_id)
 
 @app.get("/c/{chat_id}")
 async def get_chat(request: Request, chat_id: str):
@@ -99,10 +88,15 @@ async def post_chat(request: Request, chat_id: str):
     form_data = await request.form()
     user_input = form_data['user_input']
     model_id = form_data['model_select']
-    models.save_chat_and_message(chat_id, "", "user", user_input, model_id=model_id)
+
+    title = ""
+    if not models.chat_exists(chat_id):
+        title = generate_title(user_input)
+    models.save_chat_and_message(chat_id, title, "user", user_input, model_id=model_id)
 
     generator = stream_groq_response(chat_id, user_input, model_id=model_id)
-    return StreamingResponse(generator, media_type='text/event-stream')
+    headers = {"X-Chat-Id": chat_id}
+    return StreamingResponse(generator, media_type='text/event-stream', headers=headers)
 
 @app.get("/delete/{chat_id}")
 async def delete_chat(chat_id: str):

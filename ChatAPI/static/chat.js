@@ -37,7 +37,6 @@ function appendMessage(content, role='assistant'){
   if(role === 'user'){
     rendered.innerHTML = content.replace(/\n/g, '<br>');
   } else {
-    // assistant may contain markdown/html
     const md = content;
     if (typeof marked !== 'undefined') {
       const html = marked.parse(md);
@@ -65,7 +64,6 @@ document.querySelectorAll('.message-item').forEach(item => {
   if(raw && target){
     try {
       const md = raw.textContent || '';
-      console.log('Rendering saved message, role=', role, 'md=', md.slice(0,80));
       if (role === 'user') {
         target.innerHTML = md.replace(/\n/g, '<br>');
       } else if (typeof marked !== 'undefined') {
@@ -94,64 +92,49 @@ if (chatMain && chatMain.scrollHeight > chatMain.clientHeight) {
   chatMain.scrollTop = chatMain.scrollHeight;
 }
 
-document.getElementById('chat-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const input = document.getElementById('user_input');
-  const model_select = document.getElementById('model_select');
-  const user_input = input.value;
-  if(!user_input) return;
+const chatForm = document.getElementById('chat-form');
+if (chatForm) {
+  chatForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('user_input');
+    const model_select = document.getElementById('model_select');
+    const user_input = input.value;
+    if(!user_input) return;
 
-  appendMessage(user_input, 'user');
-  input.value = '';
+    appendMessage(user_input, 'user');
+    input.value = '';
 
-  let path = window.location.pathname;
-  if(!path.startsWith('/c/')) path = '/';
+    let path = window.location.pathname;
+    if(!path.startsWith('/c/')) path = '/';
 
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ 
-      user_input,
-      model_select: model_select.value
-    })
-  });
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ 
+        user_input,
+        model_select: model_select.value
+      })
+    });
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let assistantAccum = '';
-  let tempChatId = null;
-  const assistantContainer = document.createElement('div');
-  assistantContainer.className = 'container';
-  assistantContainer.innerHTML = `
-    <div class="message-content rounded-5 p-3 border border-dark">
-      <p id="assistant-stream"></p>
-    </div>`;
-  const chatMain = document.querySelector('.chat-main') || document.querySelector('main');
-  chatMain.appendChild(assistantContainer);
-  const assistantNode = document.getElementById('assistant-stream');
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let assistantAccum = '';
+    const assistantContainer = document.createElement('div');
+    assistantContainer.className = 'container';
+    assistantContainer.innerHTML = `
+      <div class="message-content rounded-5 p-3 border border-dark">
+        <p id="assistant-stream"></p>
+      </div>`;
+    const chatMain = document.querySelector('.chat-main') || document.querySelector('main');
+    chatMain.appendChild(assistantContainer);
+    const assistantNode = document.getElementById('assistant-stream');
 
-  while(true){
-    const { done, value } = await reader.read();
-    if(done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const parts = buffer.split('\n\n');
-    buffer = parts.pop(); // remainder
-    for(const part of parts){
-      if(!part.trim()) continue;
-      const lines = part.split('\n').map(l => l.replace(/^data:\s?/, ''));
-      const data = lines.join('\n');
-      try{
-        const parsed = JSON.parse(data);
-        if(parsed.event === 'meta' && parsed.chat_id){
-          tempChatId = parsed.chat_id;
-          history.replaceState(null, '', '/c/' + tempChatId);
-        }
-        continue;
-      }catch(_){
-        // not JSON, treat as chunk text
-      }
-      assistantAccum += data;
+    while(true){
+      const { done, value } = await reader.read();
+      if(done) break;
+      const chunk = decoder.decode(value, { stream: true });
+
+      assistantAccum += chunk;
       if (typeof marked !== 'undefined') {
         const html = marked.parse(assistantAccum);
         if (typeof DOMPurify !== 'undefined') {
@@ -164,7 +147,15 @@ document.getElementById('chat-form').addEventListener('submit', async (e) => {
       }
       chatMain.scrollTop = chatMain.scrollHeight;
     }
-  }
 
-  window.location.reload();
-});
+    try {
+      const chatId = res.headers.get('X-Chat-Id');
+      if (chatId) {
+        window.location.href = `/c/${chatId}`;
+        return;
+      }
+    } catch (err) {
+      console.warn('Could not read X-Chat-Id header:', err);
+    }
+  });
+}
