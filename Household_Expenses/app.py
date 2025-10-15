@@ -177,9 +177,6 @@ async def get_image(image_name: str):
         return FileResponse(image_path)
     return HTMLResponse("画像が見つかりません", status_code=404)
 
-# 編集・保存・削除APIは app 定義の後に記述
-from fastapi import Form
-
 @app.get("/edit/{invoice_id}", response_class=HTMLResponse)
 async def edit_invoice(request: Request, invoice_id: int):
     invoice = None
