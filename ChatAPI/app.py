@@ -48,12 +48,17 @@ async def stream_groq_response(chat_id: str, user_input: str, model_id: int = 1)
         stream=True
     )
 
+    reasoning_text = ""
     response_text = ""
     for chunk in stream:
         text = chunk.choices[0].delta.content or ""
+        reasoning = chunk.choices[0].delta.reasoning or ""
+        reasoning_text += reasoning
         response_text += text
         yield sse_event(text)
 
+    if reasoning_text:
+        models.save_chat_and_message(chat_id, "", "reasoning", reasoning_text, model_id=model_id)
     if response_text:
         models.save_chat_and_message(chat_id, "", "assistant", response_text, model_id=model_id)
 
