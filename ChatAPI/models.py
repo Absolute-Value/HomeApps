@@ -82,3 +82,15 @@ def get_chat_title(chat_id: str) -> str:
   chat = db.query(chats).filter(chats.id == chat_id).first()
   db.close()
   return chat.title if chat else "Untitled Chat"
+
+def get_models():
+    db: Session = SessionLocal()
+    models_list = db.query(models).all()
+    db.close()
+    return models_list
+
+def get_model_from_id(model_id: int):
+    db: Session = SessionLocal()
+    model = db.query(models).filter(models.id == model_id).first()
+    db.close()
+    return model.name if model else "meta-llama/llama-4-maverick-17b-128e-instruct"

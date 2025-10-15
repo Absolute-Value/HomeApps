@@ -45,11 +45,18 @@
         </div>
         {% endfor %}
       </div>
-      <form id="chat-form" class="w-96 d-flex bg-body-tertiary rounded-5 m-3" method="post" action="javascript:void(0);" style="flex-shrink: 0;">
+      <form id="chat-form" class="w-96 bg-body-tertiary rounded-5 m-3" method="post" action="javascript:void(0);" style="flex-shrink: 0;">
         <textarea id="user_input" name="user_input" class="form-control border-0 bg-body-tertiary" rows="1" style="resize:none; overflow-y:auto;" placeholder="質問してみましょう" aria-label="質問してみましょう" required></textarea>
-        <button id="send-btn" type="submit" class="btn btn-secondary rounded-5">
-          <span class="bi bi-send"></span>
-        </button>
+        <div class="d-flex">
+          <select id="model_select" name="model_select" class="form-select border-0 bg-body-tertiary">
+            {% for model in models %}
+              <option value="{{ model.id }}" {% if messages and messages[-1].model_id == model.id %}selected{% endif %}>{{ model.display }}</option>
+            {% endfor %}
+          </select>
+          <button id="send-btn" type="submit" class="btn btn-secondary rounded-5">
+            <span class="bi bi-send"></span>
+          </button>
+        </div>
       </form>
     </main>
   </div>

@@ -30,7 +30,7 @@ def generate_title(user_input: str) -> str:
         return response.choices[0].message.content
     return user_input[:20]
 
-async def stream_groq_response(chat_id: str, user_input: str):
+async def stream_groq_response(chat_id: str, user_input: str, model_id: int = 1):
     yield sse_event(f"{{\"event\": \"meta\", \"chat_id\": \"{chat_id}\"}}")
     messages = models.load_messages(chat_id)
     groq_messages = []
@@ -40,8 +40,10 @@ async def stream_groq_response(chat_id: str, user_input: str):
             "content": message.content
         })
 
+    model_name = models.get_model_from_id(model_id)
+    print(f"Using model: {model_name}")
     stream = groq_client.chat.completions.create(
-        model="meta-llama/llama-4-maverick-17b-128e-instruct",
+        model=model_name,
         messages=groq_messages,
         stream=True
     )
@@ -53,7 +55,7 @@ async def stream_groq_response(chat_id: str, user_input: str):
         yield sse_event(text)
 
     if response_text:
-        models.save_chat_and_message(chat_id, "", "assistant", response_text)
+        models.save_chat_and_message(chat_id, "", "assistant", response_text, model_id=model_id)
 
 @app.on_event("startup")
 def init_db():
@@ -62,17 +64,19 @@ def init_db():
 @app.get("/")
 async def read_root(request: Request):
     chats = models.load_chats()
-    return templates.TemplateResponse("index.html", {"request": request, "page": "Free Chat", "chats": chats})
+    ai_models = models.get_models()
+    return templates.TemplateResponse("index.html", {"request": request, "page": "Free Chat", "chats": chats, "models": ai_models})
 
 @app.post("/")
 async def chat_endpoint(request: Request):
     form_data = await request.form()
     chat_id = str(ULID())
     user_input = form_data['user_input']
+    model_id = form_data['model_select']
     title = generate_title(user_input)
-    models.save_chat_and_message(chat_id, title, "user", user_input)
+    models.save_chat_and_message(chat_id, title, "user", user_input, model_id=model_id)
 
-    generator = stream_groq_response(chat_id, user_input)
+    generator = stream_groq_response(chat_id, user_input, model_id=model_id)
     return StreamingResponse(generator, media_type='text/event-stream')
 
 @app.get("/c/{chat_id}")
@@ -82,15 +86,17 @@ async def get_chat(request: Request, chat_id: str):
     messages = models.load_messages(chat_id)
     chats = models.load_chats()
     title = models.get_chat_title(chat_id)
-    return templates.TemplateResponse("index.html", {"request": request, "page": title, "chats": chats, "messages": messages})
+    ai_models = models.get_models()
+    return templates.TemplateResponse("index.html", {"request": request, "page": title, "chats": chats, "messages": messages, "models": ai_models})
 
 @app.post("/c/{chat_id}")
 async def post_chat(request: Request, chat_id: str):
     form_data = await request.form()
     user_input = form_data['user_input']
-    models.save_chat_and_message(chat_id, "", "user", user_input)
+    model_id = form_data['model_select']
+    models.save_chat_and_message(chat_id, "", "user", user_input, model_id=model_id)
 
-    generator = stream_groq_response(chat_id, user_input)
+    generator = stream_groq_response(chat_id, user_input, model_id=model_id)
     return StreamingResponse(generator, media_type='text/event-stream')
 
 @app.get("/delete/{chat_id}")

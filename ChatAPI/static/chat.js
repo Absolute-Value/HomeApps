@@ -97,6 +97,7 @@ if (chatMain && chatMain.scrollHeight > chatMain.clientHeight) {
 document.getElementById('chat-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const input = document.getElementById('user_input');
+  const model_select = document.getElementById('model_select');
   const user_input = input.value;
   if(!user_input) return;
 
@@ -109,7 +110,10 @@ document.getElementById('chat-form').addEventListener('submit', async (e) => {
   const res = await fetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ user_input })
+    body: new URLSearchParams({ 
+      user_input,
+      model_select: model_select.value
+    })
   });
 
   const reader = res.body.getReader();
