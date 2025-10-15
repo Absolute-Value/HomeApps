@@ -14,7 +14,7 @@
     {% endif %}
     <div class="row">
   <div class="col-lg-7 col-md-12 order-2 order-lg-1">
-        <form method="post" action="/edit/{{ invoice['id'] }}">
+        <form method="post" action="{{ root_path }}/edit/{{ invoice['id'] }}">
           <div class="mb-3">
             <label class="form-label">店名</label>
             <input type="text" class="form-control" name="店名" value="{{ invoice['店名'] }}">
@@ -64,7 +64,7 @@
                 <td><input type="text" name="item_{{ item['id'] }}_品名" value="{{ item['品名'] }}" class="form-control"></td>
                 <td><input type="number" name="item_{{ item['id'] }}_金額" value="{{ item['金額'] }}" class="form-control item-amount"></td>
                 <td><input type="text" name="item_{{ item['id'] }}_単位" value="{{ item['単位'] }}" class="form-control"></td>
-                <td><a href="/delete_item/{{ item['id'] }}?invoice_id={{ invoice['id'] }}" class="btn btn-sm btn-danger" onclick="return confirm('本当に削除しますか？');">削除</a></td>
+                <td><a href="{{ root_path }}/delete_item/{{ item['id'] }}?invoice_id={{ invoice['id'] }}" class="btn btn-sm btn-danger" onclick="return confirm('本当に削除しますか？');">削除</a></td>
               </tr>
               {% endfor %}
               <!-- 新規追加行 -->
@@ -81,18 +81,18 @@
             <input type="number" class="form-control" name="品目の合計金額" id="items-total" value="{{ items_total }}" readonly>
           </div>
           <button type="submit" class="btn btn-primary">保存</button>
-          <a href="/delete/{{ invoice['id'] }}" class="btn btn-danger ms-2" onclick="return confirm('本当に削除しますか？');">レシート削除</a>
-          <a href="/" class="btn btn-secondary ms-2">戻る</a>
+          <a href="{{ root_path }}/delete/{{ invoice['id'] }}" class="btn btn-danger ms-2" onclick="return confirm('本当に削除しますか？');">レシート削除</a>
+          <a href="{{ root_path }}/" class="btn btn-secondary ms-2">戻る</a>
         </form>
       </div>
       <!-- 画像表示: スマホでは上部、PCでは右側 -->
       {% if invoice['画像名'] %}
         <div class="col-12 d-block d-lg-none mb-3 text-center order-1 order-lg-2">
-          <img src="/images/{{ invoice['画像名'] }}" alt="画像" style="max-width:100%; max-height:400px; border-radius:12px; box-shadow:0 0 16px #222; margin-top:16px;">
+          <img src="{{ root_path }}/images/{{ invoice['画像名'] }}" alt="画像" style="max-width:100%; max-height:400px; border-radius:12px; box-shadow:0 0 16px #222; margin-top:16px;">
         </div>
         <div class="col-lg-5 d-none d-lg-block align-self-start order-2 order-lg-2">
           <div class="mb-3 text-end">
-            <img src="/images/{{ invoice['画像名'] }}" alt="画像" style="max-width:100%; max-height:1200px; border-radius:12px; box-shadow:0 0 16px #222; margin-top:16px;">
+            <img src="{{ root_path }}/images/{{ invoice['画像名'] }}" alt="画像" style="max-width:100%; max-height:1200px; border-radius:12px; box-shadow:0 0 16px #222; margin-top:16px;">
           </div>
         </div>
       {% endif %}

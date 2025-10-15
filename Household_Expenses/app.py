@@ -15,6 +15,12 @@ from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
+# テンプレートコンテキストにroot_pathを追加するためのカスタム関数
+def get_root_path(request: Request = None):
+    if request and "x-forwarded-prefix" in request.headers:
+        return request.headers["x-forwarded-prefix"]
+    return ""
+
 DB_PATH = "/data/expenses.db"
 IMAGES_DIR = "/data/done"
 WAIT_DIR = "/data/wait"
@@ -143,13 +149,18 @@ async def index(request: Request):
                 rows = await cursor.fetchall()
                 columns = [col[0] for col in cursor.description]
                 invoices = [dict(zip(columns, row)) for row in rows]
-    return templates.TemplateResponse("index.html", {"request": request, "page_title": "家計レシート一覧", "invoices": invoices})
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "page_title": "家計レシート一覧",
+        "invoices": invoices,
+        "root_path": get_root_path(request)
+    })
 
 @app.post("/upload")
 async def upload(request: Request, file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
     # ファイルが選択されているか確認
     if not file or not file.filename:
-        return RedirectResponse(url="/?error=ファイルが選択されていません", status_code=303)
+        return RedirectResponse(url=f"{get_root_path(request)}/?error=ファイルが選択されていません", status_code=303)
     
     # 画像保存
     filename = f"{uuid4()}.jpg"
@@ -157,7 +168,7 @@ async def upload(request: Request, file: UploadFile = File(...), background_task
     with open(save_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
     background_tasks.add_task(process_image_ocr, save_path, filename)
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url=f"{get_root_path(request)}/", status_code=303)
 
 @app.get("/images/{image_name}")
 async def get_image(image_name: str):
@@ -190,7 +201,13 @@ async def edit_invoice(request: Request, invoice_id: int):
                 items_total += float(amount) if amount else 0
     if not invoice:
         return HTMLResponse("データが見つかりません", status_code=404)
-    return templates.TemplateResponse("edit.html", {"request": request, "invoice": invoice, "items": items, "items_total": items_total})
+    return templates.TemplateResponse("edit.html", {
+        "request": request,
+        "invoice": invoice,
+        "items": items,
+        "items_total": items_total,
+        "root_path": get_root_path(request)
+    })
 
 @app.post("/edit/{invoice_id}")
 async def save_invoice(request: Request, invoice_id: int):
@@ -199,7 +216,7 @@ async def save_invoice(request: Request, invoice_id: int):
     await update_items(form, invoice_id)
     # 請求書本体の更新（品目の合計金額を含む）
     await update_invoice(form, invoice_id)
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url=f"{get_root_path(request)}/", status_code=303)
 
 # 請求書本体の更新
 async def update_invoice(form, invoice_id):
@@ -250,7 +267,7 @@ async def delete_item(request: Request, item_id: int, invoice_id: int):
     async with aiosqlite.connect(DB_PATH) as conn:
         await conn.execute("DELETE FROM items WHERE id=?", (item_id,))
         await conn.commit()
-    return RedirectResponse(url=f"/edit/{invoice_id}", status_code=303)
+    return RedirectResponse(url=f"{get_root_path(request)}/edit/{invoice_id}", status_code=303)
 
 @app.get("/delete/{invoice_id}")
 async def delete_invoice(request: Request, invoice_id: int):
@@ -268,7 +285,7 @@ async def delete_invoice(request: Request, invoice_id: int):
         image_path = os.path.join(IMAGES_DIR, image_name)
         if os.path.exists(image_path):
             os.remove(image_path)
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url=f"{get_root_path(request)}/", status_code=303)
 
 # 集計ページ（/summary）
 @app.get("/summary", response_class=HTMLResponse)
@@ -332,5 +349,6 @@ async def summary(request: Request, ym: str = None):
             "selected_ym": selected_ym,
             "shop_summary_selected": shop_summary_selected,
             "filtered_selected": filtered_selected,
+            "root_path": get_root_path(request)
         }
     )

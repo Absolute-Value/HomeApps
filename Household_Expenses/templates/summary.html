@@ -9,7 +9,7 @@
 <body>
   <div class="container">
     <h1 class="mt-4 mb-3 text-light">{{ page_title }}</h1>
-    <a href="/" class="btn btn-secondary mb-3">一覧に戻る</a>
+    <a href="{{ root_path }}/" class="btn btn-secondary mb-3">一覧に戻る</a>
     <div class="row">
       <div class="col-lg-6 col-md-12 mb-4">
         <h2>店名ごとの回数ランキング（上位20件）</h2>
@@ -41,7 +41,7 @@
           <thead><tr><th>年月</th><th>合計</th></tr></thead>
           <tbody>
             {% for row in ym_summary %}
-            <tr{% if row['年月'] == selected_ym %} class="table-primary"{% endif %} style="cursor: pointer;" onclick="location.href='/summary?ym={{ row['年月'] }}'">
+            <tr{% if row['年月'] == selected_ym %} class="table-primary"{% endif %} style="cursor: pointer;" onclick="location.href='{{ root_path }}/summary?ym={{ row['年月'] }}'">
               <td{% if row['年月'] == selected_ym %} class="fw-bold"{% endif %}>{{ row['年月'] }}</td>
               <td>{{ '{:,.0f}'.format(row['合計']) }}</td>
             </tr>

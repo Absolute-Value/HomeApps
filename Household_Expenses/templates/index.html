@@ -12,7 +12,7 @@
     {% if error %}
       <div class="alert alert-danger">{{ error }}</div>
     {% endif %}
-    <form method="post" action="/upload" enctype="multipart/form-data" class="my-3" id="uploadForm">
+    <form method="post" action="{{ root_path }}/upload" enctype="multipart/form-data" class="my-3" id="uploadForm">
       <div class="mb-3">
         <label for="file" class="form-label">画像を選択してください</label>
         <input class="form-control" type="file" name="file" id="file" accept="image/*" required>
@@ -20,7 +20,7 @@
       <button type="submit" class="btn btn-primary">アップロード</button>
     </form>
     <hr>
-    <a href="/summary" class="btn btn-info mb-3">集計ページへ</a>
+    <a href="{{ root_path }}/summary" class="btn btn-info mb-3">集計ページへ</a>
     <hr>
     <h2>登録済みレシート一覧</h2>
     <table class="table table-striped">
@@ -37,7 +37,7 @@
       </thead>
       <tbody>
         {% for invoice in invoices %}
-        <tr class="clickable-row" data-href="/edit/{{ invoice['id'] }}" style="cursor:pointer;">
+        <tr class="clickable-row" data-href="{{ root_path }}/edit/{{ invoice['id'] }}" style="cursor:pointer;">
           <td>{{ invoice['id'] }}</td>
           <td>{{ invoice['店名'] }}</td>
           <td>{{ invoice['店の受取人'] }}</td>
