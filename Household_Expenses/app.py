@@ -1,6 +1,8 @@
 import os
 import shutil
+import aiosqlite
 import pandas as pd
+import altair as alt
 from uuid import uuid4
 from fastapi import FastAPI, Request, UploadFile, File, Form, BackgroundTasks
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
@@ -9,7 +11,6 @@ from fastapi.staticfiles import StaticFiles
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
-import aiosqlite
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
@@ -268,3 +269,68 @@ async def delete_invoice(request: Request, invoice_id: int):
         if os.path.exists(image_path):
             os.remove(image_path)
     return RedirectResponse(url="/", status_code=303)
+
+# 集計ページ（/summary）
+@app.get("/summary", response_class=HTMLResponse)
+async def summary(request: Request, ym: str = None):
+    PAGE_TITLE = "集計ページ"
+    shop_count = []
+    shop_summary = []
+    ym_summary = []
+    selected_ym = None
+    shop_summary_selected = []
+    filtered_selected = []
+    # DBからデータ取得
+    if os.path.exists(DB_PATH):
+        async with aiosqlite.connect(DB_PATH) as conn:
+            invoice_df = pd.DataFrame()
+            async with conn.execute("SELECT * FROM invoices") as cursor:
+                rows = await cursor.fetchall()
+                columns = [col[0] for col in cursor.description]
+                invoice_df = pd.DataFrame(rows, columns=columns)
+            # 店名ごとの回数ランキング
+            if not invoice_df.empty:
+                # 数値カラムを数値型に変換
+                numeric_columns = ['品目の合計金額', '小計', '税金', '合計']
+                for col in numeric_columns:
+                    if col in invoice_df.columns:
+                        invoice_df[col] = pd.to_numeric(invoice_df[col], errors='coerce').fillna(0)
+                
+                shop_count_df = invoice_df['店名'].value_counts().reset_index()
+                shop_count_df.columns = ['店名', '回数']
+                shop_count_df = shop_count_df.sort_values('回数', ascending=False)
+                shop_count = shop_count_df.head(20).to_dict(orient='records')
+                # 店名ごとの合計金額
+                shop_summary_df = invoice_df.groupby('店名')['合計'].sum().reset_index()
+                shop_summary_df = shop_summary_df.sort_values('合計', ascending=False)
+                shop_summary = shop_summary_df.head(20).to_dict(orient='records')
+                # 年月ごとの合計金額
+                invoice_df['年月'] = pd.to_datetime(invoice_df['請求日']).dt.strftime('%y/%m')
+                ym_summary_df = invoice_df.groupby('年月')['合計'].sum().reset_index()
+                ym_summary_df = ym_summary_df.sort_values('年月')
+                ym_summary = ym_summary_df.to_dict(orient='records')
+                # 選択年月のデータ（クエリパラメータがあればそれを、なければ最新年月を使用）
+                if not ym_summary_df.empty:
+                    if ym and ym in ym_summary_df['年月'].values:
+                        selected_ym = ym
+                    else:
+                        selected_ym = ym_summary_df['年月'].iloc[-1]
+                    filtered_df = invoice_df[invoice_df['年月'] == selected_ym]
+                    if '店名' in filtered_df.columns and '合計' in filtered_df.columns:
+                        shop_summary_selected_df = filtered_df.groupby('店名')['合計'].sum().reset_index()
+                        shop_summary_selected_df = shop_summary_selected_df.sort_values('合計', ascending=False)
+                        shop_summary_selected = shop_summary_selected_df.to_dict(orient='records')
+                        filtered_selected = filtered_df.sort_values('合計', ascending=False).to_dict(orient='records')
+    return templates.TemplateResponse(
+        "summary.html",
+        {
+            "request": request,
+            "page_title": PAGE_TITLE,
+            "shop_count": shop_count,
+            "shop_summary": shop_summary,
+            "ym_summary": ym_summary,
+            "selected_ym": selected_ym,
+            "shop_summary_selected": shop_summary_selected,
+            "filtered_selected": filtered_selected,
+        }
+    )

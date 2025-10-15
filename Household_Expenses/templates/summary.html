@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page_title }}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <h1 class="mt-4 mb-3 text-light">{{ page_title }}</h1>
+    <a href="/" class="btn btn-secondary mb-3">一覧に戻る</a>
+    <div class="row">
+      <div class="col-lg-6 col-md-12 mb-4">
+        <h2>店名ごとの回数ランキング（上位20件）</h2>
+        <table class="table table-striped table-sm">
+          <thead><tr><th>店名</th><th>回数</th></tr></thead>
+          <tbody>
+            {% for row in shop_count %}
+            <tr><td>{{ row['店名'] }}</td><td>{{ row['回数'] }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="col-lg-6 col-md-12 mb-4">
+        <h2>店名ごとの合計金額（上位20件）</h2>
+        <table class="table table-striped table-sm">
+          <thead><tr><th>店名</th><th>合計</th></tr></thead>
+          <tbody>
+            {% for row in shop_summary %}
+            <tr><td>{{ row['店名'] }}</td><td>{{ '{:,.0f}'.format(row['合計']) }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-lg-6 col-md-12 mb-4">
+        <h2>年月ごとの合計金額</h2>
+        <table class="table table-striped table-sm">
+          <thead><tr><th>年月</th><th>合計</th></tr></thead>
+          <tbody>
+            {% for row in ym_summary %}
+            <tr{% if row['年月'] == selected_ym %} class="table-primary"{% endif %} style="cursor: pointer;" onclick="location.href='/summary?ym={{ row['年月'] }}'">
+              <td{% if row['年月'] == selected_ym %} class="fw-bold"{% endif %}>{{ row['年月'] }}</td>
+              <td>{{ '{:,.0f}'.format(row['合計']) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="col-lg-6 col-md-12 mb-4">
+        <h2>選択年月（{{ selected_ym }}）の店名ごとの合計金額</h2>
+        <table class="table table-striped table-sm">
+          <thead><tr><th>店名</th><th>合計</th></tr></thead>
+          <tbody>
+            {% for row in shop_summary_selected %}
+            <tr><td>{{ row['店名'] }}</td><td>{{ '{:,.0f}'.format(row['合計']) }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12 mb-4">
+        <h2>選択年月（{{ selected_ym }}）の明細一覧</h2>
+        <table class="table table-striped table-sm">
+          <thead>
+            <tr>
+              <th>ID</th><th>店名</th><th>店の受取人</th><th>請求日</th><th>品目の合計金額</th><th>小計</th><th>税金</th><th>合計</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in filtered_selected %}
+            <tr>
+              <td>{{ row['id'] }}</td>
+              <td>{{ row['店名'] }}</td>
+              <td>{{ row['店の受取人'] }}</td>
+              <td>{{ row['請求日'] }}</td>
+              <td>{{ '{:,.0f}'.format(row['品目の合計金額']) }}</td>
+              <td>{{ '{:,.0f}'.format(row['小計']) }}</td>
+              <td>{{ '{:,.0f}'.format(row['税金']) }}</td>
+              <td>{{ '{:,.0f}'.format(row['合計']) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
