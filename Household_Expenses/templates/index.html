@@ -9,9 +9,6 @@
 <body>
   <div class="container">
     <h1 class="mt-4 mb-3 text-light">{{ page_title }}</h1>
-    {% if error %}
-      <div class="alert alert-danger">{{ error }}</div>
-    {% endif %}
     <form method="post" action="{{ root_path }}/upload" enctype="multipart/form-data" class="my-3" id="uploadForm">
       <div class="mb-3">
         <label for="file" class="form-label">画像を選択してください</label>
@@ -19,8 +16,9 @@
       </div>
       <button type="submit" class="btn btn-primary">アップロード</button>
     </form>
+    <span>処理待ち：{{ waiting_count }}件</span>
     <hr>
-    <a href="{{ root_path }}/summary" class="btn btn-info mb-3">集計ページへ</a>
+    <a href="{{ root_path }}/summary" class="btn btn-success mb-3">集計ページへ</a>
     <hr>
     <h2>登録済みレシート一覧</h2>
     <table class="table table-striped">

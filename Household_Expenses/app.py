@@ -1,10 +1,11 @@
+import asyncio
 import os
 import shutil
 import aiosqlite
 import pandas as pd
 import altair as alt
 from uuid import uuid4
-from fastapi import FastAPI, Request, UploadFile, File, Form, BackgroundTasks
+from fastapi import FastAPI, Request, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -15,15 +16,22 @@ from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
+
+def _log_background_exception(task: asyncio.Task) -> None:
+    try:
+        task.result()
+    except Exception as exc:
+        print(f"バックグラウンドタスクエラー: {exc}")
+
 # テンプレートコンテキストにroot_pathを追加するためのカスタム関数
 def get_root_path(request: Request = None):
     if request and "x-forwarded-prefix" in request.headers:
         return request.headers["x-forwarded-prefix"]
     return ""
 
-DB_PATH = "/data/expenses.db"
-IMAGES_DIR = "/data/done"
-WAIT_DIR = "/data/wait"
+DB_PATH = "../data/expenses.db"
+IMAGES_DIR = "../data/done"
+WAIT_DIR = "../data/wait"
 os.makedirs(IMAGES_DIR, exist_ok=True)
 os.makedirs(WAIT_DIR, exist_ok=True)
 
@@ -41,6 +49,16 @@ def initialize_document_intelligence_client():
         print(f"Document Intelligence クライアントの初期化に失敗しました: {str(e)}")
         return None
 
+
+def _analyze_document_sync(client: DocumentIntelligenceClient, image_path: str):
+    with open(image_path, "rb") as f:
+        image_bytes = f.read()
+    poller = client.begin_analyze_document(
+        "prebuilt-invoice",
+        AnalyzeDocumentRequest(bytes_source=image_bytes)
+    )
+    return poller.result()
+
 async def process_image_ocr(image_path: str, image_name: str):
     """画像をOCR処理してDBに保存するバックグラウンドタスク"""
     try:
@@ -49,14 +67,7 @@ async def process_image_ocr(image_path: str, image_name: str):
             print(f"クライアント初期化失敗: {image_name}")
             return
         
-        with open(image_path, "rb") as f:
-            image_bytes = f.read()
-        
-        poller = client.begin_analyze_document(
-            "prebuilt-invoice",
-            AnalyzeDocumentRequest(bytes_source=image_bytes)
-        )
-        result = poller.result()
+        result = await asyncio.to_thread(_analyze_document_sync, client, image_path)
 
         if not result.documents:
             print(f"OCRの結果を取得できませんでした: {image_name}")
@@ -92,7 +103,10 @@ async def process_image_ocr(image_path: str, image_name: str):
                         "単位": amount_data.get("currencyCode", "")
                     })
                 df = pd.DataFrame(items_rows)
-                database["品目の合計金額"] = df['金額'].apply(pd.to_numeric, errors='coerce').sum()
+                if not df.empty and "金額" in df.columns:
+                    database["品目の合計金額"] = df['金額'].apply(pd.to_numeric, errors='coerce').sum()
+                else:
+                    database["品目の合計金額"] = 0
             elif k == "SubTotal":
                 data = v.get("valueCurrency", {})
                 database["小計"] = int(data.get("amount", ""))
@@ -149,25 +163,28 @@ async def index(request: Request):
                 rows = await cursor.fetchall()
                 columns = [col[0] for col in cursor.description]
                 invoices = [dict(zip(columns, row)) for row in rows]
+    waiting_count = len(os.listdir(WAIT_DIR))
     return templates.TemplateResponse("index.html", {
         "request": request,
         "page_title": "家計レシート一覧",
         "invoices": invoices,
-        "root_path": get_root_path(request)
+        "root_path": get_root_path(request),
+        "waiting_count": waiting_count
     })
 
 @app.post("/upload")
-async def upload(request: Request, file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
+async def upload(request: Request, file: UploadFile = File(...)):
     # ファイルが選択されているか確認
     if not file or not file.filename:
         return RedirectResponse(url=f"{get_root_path(request)}/?error=ファイルが選択されていません", status_code=303)
     
     # 画像保存
     filename = f"{uuid4()}.jpg"
-    save_path = os.path.join(IMAGES_DIR, filename)
+    save_path = os.path.join(WAIT_DIR, filename)
     with open(save_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
-    background_tasks.add_task(process_image_ocr, save_path, filename)
+    task = asyncio.create_task(process_image_ocr(save_path, filename))
+    task.add_done_callback(_log_background_exception)
     return RedirectResponse(url=f"{get_root_path(request)}/", status_code=303)
 
 @app.get("/images/{image_name}")
@@ -217,7 +234,6 @@ async def save_invoice(request: Request, invoice_id: int):
 
 # 請求書本体の更新
 async def update_invoice(form, invoice_id):
-    品目の合計金額 = float(form.get("品目の合計金額", 0))
     async with aiosqlite.connect(DB_PATH) as conn:
         await conn.execute("""
             UPDATE invoices SET 店名=?, 店の受取人=?, 店の住所=?, 請求日=?, 請求書番号=?, 品目の合計金額=?, 小計=?, 税金=?, 合計=? WHERE id=?
@@ -227,10 +243,10 @@ async def update_invoice(form, invoice_id):
             form.get("店の住所", ""),
             form.get("請求日", ""),
             form.get("請求書番号", ""),
-            品目の合計金額,
-            float(form.get("小計", 0)),
-            float(form.get("税金", 0)),
-            float(form.get("合計", 0)),
+            form.get("品目の合計金額", ""),
+            form.get("小計", ""),
+            form.get("税金", ""),
+            form.get("合計", ""),
             invoice_id
         ))
         await conn.commit()
