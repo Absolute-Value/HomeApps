@@ -31,6 +31,8 @@ async def stream_groq_response(chat_id: str, user_input: str, model_id: int = 1)
     messages = models.load_messages(chat_id)
     groq_messages = []
     for message in messages:
+        if message.role == "reasoning":
+            continue
         groq_messages.append({
             "role": message.role,
             "content": message.content
