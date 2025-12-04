@@ -35,9 +35,10 @@
             <label class="form-label">請求書番号</label>
             <input type="text" class="form-control" name="請求書番号" value="{{ invoice['請求書番号'] }}">
           </div>
-          <div class="mb-3">
-            <label class="form-label">小計</label>
-            <input type="number" class="form-control" name="小計" value="{{ invoice['小計'] }}">
+          <label class="form-label">小計</label>
+          <div class="mb-3 input-group">
+            <input id="subtotal" type="number" class="form-control " name="小計" value="{{ invoice['小計'] }}">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="askAI();">AI</button>
           </div>
           <div class="mb-3">
             <label class="form-label">税金</label>
@@ -88,11 +89,11 @@
       <!-- 画像表示: スマホでは上部、PCでは右側 -->
       {% if invoice['画像名'] %}
         <div class="col-12 d-block d-lg-none mb-3 text-center order-1 order-lg-2">
-          <img src="{{ root_path }}/images/{{ invoice['画像名'] }}" alt="画像" style="max-width:100%; max-height:400px; border-radius:12px; box-shadow:0 0 16px #222; margin-top:16px;">
+          <img id="receiptImage" src="{{ root_path }}/images/{{ invoice['画像名'] }}" alt="画像" style="max-width:100%; max-height:400px; border-radius:12px; box-shadow:0 0 16px #222; margin-top:16px;">
         </div>
         <div class="col-lg-5 d-none d-lg-block align-self-start order-2 order-lg-2">
           <div class="mb-3 text-end">
-            <img src="{{ root_path }}/images/{{ invoice['画像名'] }}" alt="画像" style="max-width:100%; max-height:1200px; border-radius:12px; box-shadow:0 0 16px #222; margin-top:16px;">
+            <img id="receiptImage" src="{{ root_path }}/images/{{ invoice['画像名'] }}" alt="画像" style="max-width:100%; max-height:1200px; border-radius:12px; box-shadow:0 0 16px #222; margin-top:16px;">
           </div>
         </div>
       {% endif %}
@@ -121,6 +122,35 @@
         input.addEventListener('input', calculateTotal);
       });
     });
+
+    function askAI() {
+      var subtotalInput = document.getElementById('subtotal');
+      var receiptImage = document.getElementById('receiptImage');
+      
+      if (!receiptImage) {
+        alert('画像がありません。');
+        return;
+      }
+
+      var imageUrl = receiptImage.src;
+      // 画像のフルURLではなく画像名だけをサーバーに送る
+      var imageName = imageUrl.split('/').pop();
+      var url = '{{ root_path }}/ask/subtotal?image_name=' + encodeURIComponent(imageName);
+      fetch(url)
+      .then(response => response.json())
+      .then(data => {
+        // サーバーは {"answer": "..."} を返すためそれに合わせる
+        if (data.answer !== undefined) {
+          subtotalInput.value = data.answer;
+        } else {
+          alert('AIから小計を取得できませんでした。');
+        }
+      })
+      .catch(error => {
+        alert('AIとの通信中にエラーが発生しました。');
+        console.error('Error:', error);
+      });
+    }
   </script>
 </body>
 </html>

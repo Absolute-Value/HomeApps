@@ -4,6 +4,7 @@ import shutil
 import aiosqlite
 import pandas as pd
 import altair as alt
+import base64
 from uuid import uuid4
 from fastapi import FastAPI, Request, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
@@ -12,10 +13,12 @@ from fastapi.staticfiles import StaticFiles
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
+from groq import Groq
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
+client = Groq()
 
 def _log_background_exception(task: asyncio.Task) -> None:
     try:
@@ -365,3 +368,48 @@ async def summary(request: Request, ym: str = None):
             "root_path": get_root_path(request)
         }
     )
+
+TYPES = {
+    'subtotal': '小計',
+}
+@app.get('/ask/{ask_type}')
+async def ask_ai(request: Request, ask_type: str):
+    # フロントエンドからは image_name を送る想定。
+    # 互換性のため image_path も許容し、basename を使って画像名を決定する。
+    image_name = request.query_params.get('image_name', '')
+    image_path = request.query_params.get('image_path', '')
+    if not image_name and image_path:
+        image_name = os.path.basename(image_path)
+    if not image_name:
+        return {"error": "image_name が指定されていません"}
+    if ask_type not in TYPES:
+        return {"error": "不明なタイプです"}
+    field_name = TYPES[ask_type]
+
+    ask_text = f"このレシートの画像から、{field_name}を教えてください。{field_name}の数字のみを回答してください。"
+    # サニタイズして IMAGES_DIR 内のファイルを直接開く
+    image_name = os.path.basename(image_name)
+    image_file = os.path.join(IMAGES_DIR, image_name)
+    if not os.path.exists(image_file):
+        return {"error": "画像ファイルが見つかりません"}
+    with open(image_file, "rb") as f:
+        image_bytes = f.read()
+    try:
+        completion = client.chat.completions.create(
+            model="meta-llama/llama-4-maverick-17b-128e-instruct",
+            messages=[
+                {
+                    "role": "user", 
+                    "content": [
+                                {"type": "text", "text": ask_text},
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64.b64encode(image_bytes).decode('ascii')}"}}
+                            ]
+                },
+            ],
+            stream=False,
+            stop=None,
+        )
+    except Exception as e:
+        return {"error": str(e)}
+    answer = float(completion.choices[0].message.content.strip())
+    return {"answer": answer}
