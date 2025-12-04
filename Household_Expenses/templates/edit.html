@@ -38,15 +38,17 @@
           <label class="form-label">小計</label>
           <div class="mb-3 input-group">
             <input id="subtotal" type="number" class="form-control " name="小計" value="{{ invoice['小計'] }}">
-            <button type="button" class="btn btn-sm btn-secondary" onclick="askAI();">AI</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="askAI('subtotal');">AI</button>
           </div>
-          <div class="mb-3">
-            <label class="form-label">税金</label>
-            <input type="number" class="form-control" name="税金" value="{{ invoice['税金'] }}">
+          <label class="form-label">税金</label>
+          <div class="mb-3 input-group">
+            <input id="tax" type="number" class="form-control" name="税金" value="{{ invoice['税金'] }}">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="askAI('tax');">AI</button>
           </div>
-          <div class="mb-3">
-            <label class="form-label">合計</label>
-            <input type="number" class="form-control" name="合計" value="{{ invoice['合計'] }}">
+          <label class="form-label">合計</label>
+          <div class="mb-3 input-group">
+            <input id="total" type="number" class="form-control" name="合計" value="{{ invoice['合計'] }}">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="askAI('total');">AI</button>
           </div>
           <hr>
           <h2>品目一覧</h2>
@@ -123,10 +125,15 @@
       });
     });
 
-    function askAI() {
-      var subtotalInput = document.getElementById('subtotal');
+    function askAI(targetId) {
+      var targetInput = document.getElementById(targetId);
       var receiptImage = document.getElementById('receiptImage');
-      
+
+      if (!targetInput) {
+        alert('対象の入力フィールドが見つかりません。');
+        return;
+      }
+
       if (!receiptImage) {
         alert('画像がありません。');
         return;
@@ -134,16 +141,18 @@
 
       var imageUrl = receiptImage.src;
       // 画像のフルURLではなく画像名だけをサーバーに送る
-      var imageName = imageUrl.split('/').pop();
-      var url = '{{ root_path }}/ask/subtotal?image_name=' + encodeURIComponent(imageName);
+      var imageName = (new URL(imageUrl, window.location.href)).pathname.split('/').pop();
+
+      var url = '{{ root_path }}/ask/' + targetId + '?image_name=' + encodeURIComponent(imageName);
       fetch(url)
       .then(response => response.json())
       .then(data => {
-        // サーバーは {"answer": "..."} を返すためそれに合わせる
+        // サーバーは {"answer": "..."} を返す想定
         if (data.answer !== undefined) {
-          subtotalInput.value = data.answer;
+          targetInput.value = data.answer;
         } else {
-          alert('AIから小計を取得できませんでした。');
+          alert('AIから値を取得できませんでした。コンソールを確認してください。');
+          console.error('Unexpected askAI response:', data);
         }
       })
       .catch(error => {

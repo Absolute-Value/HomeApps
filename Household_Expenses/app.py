@@ -372,6 +372,8 @@ async def summary(request: Request, ym: str = None):
 
 TYPES = {
     'subtotal': '小計',
+    'tax': '消費税',
+    'total': '合計'
 }
 @app.get('/ask/{ask_type}')
 async def ask_ai(request: Request, ask_type: str):
@@ -387,7 +389,7 @@ async def ask_ai(request: Request, ask_type: str):
         return {"error": "不明なタイプです"}
     field_name = TYPES[ask_type]
 
-    ask_text = f"このレシートの画像から、{field_name}を教えてください。{field_name}の数字のみを回答してください。記号やカンマは含めないでください。例えば1234のように答えてください。"
+    ask_text = f"このレシートの画像から、{field_name}を抜き出してください。回答は数字のみで、記号やカンマは含めないでください。"
     # サニタイズして IMAGES_DIR 内のファイルを直接開く
     image_name = os.path.basename(image_name)
     image_file = os.path.join(IMAGES_DIR, image_name)
@@ -395,22 +397,43 @@ async def ask_ai(request: Request, ask_type: str):
         return {"error": "画像ファイルが見つかりません"}
     with open(image_file, "rb") as f:
         image_bytes = f.read()
-    try:
-        completion = client.chat.completions.create(
-            model="meta-llama/llama-4-maverick-17b-128e-instruct",
-            messages=[
-                {
-                    "role": "user", 
-                    "content": [
-                                {"type": "text", "text": ask_text},
-                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64.b64encode(image_bytes).decode('ascii')}"}}
-                            ]
-                },
-            ],
-            stream=False,
-            stop=None,
-        )
-    except Exception as e:
-        return {"error": str(e)}
+    
+    # 3つのモデルを順番に試行
+    models = [
+        "meta-llama/llama-4-maverick-17b-128e-instruct",
+        "meta-llama/llama-4-scout-17b-16e-instruct",
+        "moonshotai/kimi-k2-instruct-0905"
+    ]
+    
+    completion = None
+    last_error = None
+    
+    for model in models:
+        try:
+            completion = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {
+                        "role": "user", 
+                        "content": [
+                            {"type": "text", "text": ask_text},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64.b64encode(image_bytes).decode('ascii')}"}}
+                        ]
+                    },
+                ],
+                stream=False,
+                stop=None,
+            )
+            # 成功したらループを抜ける
+            break
+        except Exception as e:
+            last_error = e
+            print(f"モデル {model} が失敗しました: {str(e)}")
+            continue
+    
+    # すべてのモデルが失敗した場合
+    if completion is None:
+        return {"error": f"すべてのモデルが失敗しました。最後のエラー: {str(last_error)}"}
+    
     answer = float(completion.choices[0].message.content.strip())
     return {"answer": answer}
