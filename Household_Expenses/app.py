@@ -383,6 +383,7 @@ async def summary(request: Request, ym: str = None):
     )
 
 TYPES = {
+    'shop-name': '店名',
     'vendor-recipient': '店舗名（例：浜松若林店）',
     'subtotal': '小計',
     'tax': '消費税',
