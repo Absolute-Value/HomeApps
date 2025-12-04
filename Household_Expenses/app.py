@@ -5,6 +5,7 @@ import aiosqlite
 import pandas as pd
 import altair as alt
 import base64
+import re
 from uuid import uuid4
 from fastapi import FastAPI, Request, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
@@ -386,7 +387,7 @@ async def ask_ai(request: Request, ask_type: str):
         return {"error": "不明なタイプです"}
     field_name = TYPES[ask_type]
 
-    ask_text = f"このレシートの画像から、{field_name}を教えてください。{field_name}の数字のみを回答してください。"
+    ask_text = f"このレシートの画像から、{field_name}を教えてください。{field_name}の数字のみを回答してください。記号やカンマは含めないでください。例えば1234のように答えてください。"
     # サニタイズして IMAGES_DIR 内のファイルを直接開く
     image_name = os.path.basename(image_name)
     image_file = os.path.join(IMAGES_DIR, image_name)
