@@ -8,8 +8,15 @@
 </head>
 <body>
   <div class="container">
-    <h1 class="mt-4 mb-3 text-light">{{ page_title }}</h1>
-    <a href="{{ root_path }}/" class="btn btn-secondary mb-3">一覧に戻る</a>
+    <header class="d-flex flex-wrap border-bottom mb-3">
+      <ul class="nav me-auto">
+        <li><span class="fs-4 nav-link px-2 text-white">{{ page_title }}</span></li>
+      </ul>
+      <ul class="nav">
+        <li><a href="{{ root_path }}/" class="fs-4 nav-link px-2 text-secondary">一覧</a></li>
+        <li><a href="{{ root_path }}/summary" class="fs-4 nav-link px-2 text-white">集計</a></li>
+      </ul>
+    </header>
     <div class="row">
       <div class="col-lg-6 col-md-12 mb-4">
         <h2>店名ごとの回数ランキング（上位20件）</h2>

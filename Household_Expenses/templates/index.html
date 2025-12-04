@@ -8,8 +8,16 @@
 </head>
 <body>
   <div class="container">
-    <h1 class="mt-4 mb-3 text-light">{{ page_title }}</h1>
-    <form method="post" action="{{ root_path }}/upload" enctype="multipart/form-data" class="my-3" id="uploadForm">
+    <header class="d-flex flex-wrap border-bottom mb-3">
+      <ul class="nav me-auto">
+        <li><span class="fs-4 nav-link px-2 text-white">{{ page_title }}</span></li>
+      </ul>
+      <ul class="nav">
+        <li><a href="{{ root_path }}/" class="fs-4 nav-link px-2 text-white">一覧</a></li>
+        <li><a href="{{ root_path }}/summary" class="fs-4 nav-link px-2 text-secondary">集計</a></li>
+      </ul>
+    </header>
+    <form method="post" action="{{ root_path }}/upload" enctype="multipart/form-data" class="mb-3" id="uploadForm">
       <div class="mb-3">
         <label for="file" class="form-label">画像を選択してください</label>
         <input class="form-control" type="file" name="file" id="file" accept="image/*" required>
@@ -17,8 +25,6 @@
       <button type="submit" class="btn btn-primary">アップロード</button>
     </form>
     <span>処理待ち：{{ waiting_count }}件</span>
-    <hr>
-    <a href="{{ root_path }}/summary" class="btn btn-success mb-3">集計ページへ</a>
     <hr>
     <h2>登録済みレシート一覧</h2>
     <table class="table table-striped">
