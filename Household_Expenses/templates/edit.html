@@ -22,7 +22,7 @@
           <label class="form-label">店舗名</label>
           <div class="mb-3 input-group">
             <input id="vendor-recipient" type="text" class="form-control" name="店の受取人" value="{{ invoice['店の受取人'] }}">
-            <button type="button" class="btn btn-sm btn-secondary" onclick="askAI('vendor-recipient');">AI</button>
+            <button type="button" class="btn btn-sm btn-warning" onclick="askAI('vendor-recipient');">AI</button>
           </div>
           <div class="mb-3">
             <label class="form-label">店の住所</label>
@@ -39,17 +39,19 @@
           <label class="form-label">小計</label>
           <div class="mb-3 input-group">
             <input id="subtotal" type="number" class="form-control " name="小計" value="{{ invoice['小計'] }}">
-            <button type="button" class="btn btn-sm btn-secondary" onclick="askAI('subtotal');">AI</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="sameValue('total', 'subtotal')">合計</button>
+            <button type="button" class="btn btn-sm btn-warning" onclick="askAI('subtotal');">AI</button>
           </div>
           <label class="form-label">税金</label>
           <div class="mb-3 input-group">
             <input id="tax" type="number" class="form-control" name="税金" value="{{ invoice['税金'] }}">
-            <button type="button" class="btn btn-sm btn-secondary" onclick="askAI('tax');">AI</button>
+            <button type="button" class="btn btn-sm btn-warning" onclick="askAI('tax');">AI</button>
           </div>
           <label class="form-label">合計</label>
           <div class="mb-3 input-group">
             <input id="total" type="number" class="form-control" name="合計" value="{{ invoice['合計'] }}">
-            <button type="button" class="btn btn-sm btn-secondary" onclick="askAI('total');">AI</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="sameValue('subtotal', 'total')">小計</button>
+            <button type="button" class="btn btn-sm btn-warning" onclick="askAI('total');">AI</button>
           </div>
           <hr>
           <h2>品目一覧</h2>
@@ -125,6 +127,14 @@
         input.addEventListener('input', calculateTotal);
       });
     });
+
+    function sameValue(sourceId, targetId) {
+      var sourceInput = document.getElementById(sourceId);
+      var targetInput = document.getElementById(targetId);
+      if (sourceInput && targetInput) {
+        targetInput.value = sourceInput.value;
+      }
+    }
 
     function askAI(targetId) {
       var targetInput = document.getElementById(targetId);
