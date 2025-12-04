@@ -371,6 +371,7 @@ async def summary(request: Request, ym: str = None):
     )
 
 TYPES = {
+    'vendor-recipient': '店舗名（例：浜松若林店）',
     'subtotal': '小計',
     'tax': '消費税',
     'total': '合計'
@@ -389,7 +390,7 @@ async def ask_ai(request: Request, ask_type: str):
         return {"error": "不明なタイプです"}
     field_name = TYPES[ask_type]
 
-    ask_text = f"このレシートの画像から、{field_name}を抜き出してください。回答は数字のみで、記号やカンマは含めないでください。"
+    ask_text = f"このレシートの画像から、{field_name}を抜き出してください。回答が数字の場合は、数字のみで記号やカンマは含めないでください。"
     # サニタイズして IMAGES_DIR 内のファイルを直接開く
     image_name = os.path.basename(image_name)
     image_file = os.path.join(IMAGES_DIR, image_name)
@@ -402,7 +403,6 @@ async def ask_ai(request: Request, ask_type: str):
     models = [
         "meta-llama/llama-4-maverick-17b-128e-instruct",
         "meta-llama/llama-4-scout-17b-16e-instruct",
-        "moonshotai/kimi-k2-instruct-0905"
     ]
     
     completion = None
@@ -435,5 +435,6 @@ async def ask_ai(request: Request, ask_type: str):
     if completion is None:
         return {"error": f"すべてのモデルが失敗しました。最後のエラー: {str(last_error)}"}
     
-    answer = float(completion.choices[0].message.content.strip())
+    answer = completion.choices[0].message.content
+    print(f'モデル:{model} 回答:{answer}')
     return {"answer": answer}

@@ -19,9 +19,10 @@
             <label class="form-label">店名</label>
             <input type="text" class="form-control" name="店名" value="{{ invoice['店名'] }}">
           </div>
-          <div class="mb-3">
-            <label class="form-label">店の受取人</label>
-            <input type="text" class="form-control" name="店の受取人" value="{{ invoice['店の受取人'] }}">
+          <label class="form-label">店舗名</label>
+          <div class="mb-3 input-group">
+            <input id="vendor-recipient" type="text" class="form-control" name="店の受取人" value="{{ invoice['店の受取人'] }}">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="askAI('vendor-recipient');">AI</button>
           </div>
           <div class="mb-3">
             <label class="form-label">店の住所</label>
