@@ -159,11 +159,21 @@ async def process_image_ocr(image_path: str, image_name: str):
         print(f"画像処理エラー ({image_name}): {str(e)}")
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
+async def index(request: Request, sort_by: str = "id", order: str = "desc"):
+    # ソート可能なカラムをホワイトリスト化（SQLインジェクション対策）
+    allowed_columns = ["id", "店名", "店の受取人", "請求日", "小計", "合計", "品目の合計金額"]
+    if sort_by not in allowed_columns:
+        sort_by = "id"
+    
+    # 昇順・降順の指定
+    if order.lower() not in ["asc", "desc"]:
+        order = "desc"
+    
     invoices = []
     if os.path.exists(DB_PATH):
         async with aiosqlite.connect(DB_PATH) as conn:
-            async with conn.execute("SELECT * FROM invoices ORDER BY id DESC") as cursor:
+            query = f"SELECT * FROM invoices ORDER BY `{sort_by}` {order.upper()}"
+            async with conn.execute(query) as cursor:
                 rows = await cursor.fetchall()
                 columns = [col[0] for col in cursor.description]
                 invoices = [dict(zip(columns, row)) for row in rows]
@@ -173,7 +183,9 @@ async def index(request: Request):
         "page_title": "家計レシート一覧",
         "invoices": invoices,
         "root_path": get_root_path(request),
-        "waiting_count": waiting_count
+        "waiting_count": waiting_count,
+        "sort_by": sort_by,
+        "order": order
     })
 
 @app.post("/upload")

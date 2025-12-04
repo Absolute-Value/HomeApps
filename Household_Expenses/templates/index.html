@@ -24,13 +24,41 @@
     <table class="table table-striped">
       <thead>
         <tr>
-          <th>ID</th>
-          <th>店名</th>
-          <th>店の受取人</th>
-          <th>請求日</th>
-          <th>小計</th>
-          <th>合計</th>
-          <th>品目の合計金額</th>
+          <th>
+            <a href="{{ root_path }}/?sort_by=id&order={% if sort_by == 'id' and order == 'asc' %}desc{% else %}asc{% endif %}" class="text-decoration-none text-light">
+              ID {% if sort_by == 'id' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}
+            </a>
+          </th>
+          <th>
+            <a href="{{ root_path }}/?sort_by=店名&order={% if sort_by == '店名' and order == 'asc' %}desc{% else %}asc{% endif %}" class="text-decoration-none text-light">
+              店名 {% if sort_by == '店名' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}
+            </a>
+          </th>
+          <th>
+            <a href="{{ root_path }}/?sort_by=店の受取人&order={% if sort_by == '店の受取人' and order == 'asc' %}desc{% else %}asc{% endif %}" class="text-decoration-none text-light">
+              店の受取人 {% if sort_by == '店の受取人' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}
+            </a>
+          </th>
+          <th>
+            <a href="{{ root_path }}/?sort_by=請求日&order={% if sort_by == '請求日' and order == 'asc' %}desc{% else %}asc{% endif %}" class="text-decoration-none text-light">
+              請求日 {% if sort_by == '請求日' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}
+            </a>
+          </th>
+          <th>
+            <a href="{{ root_path }}/?sort_by=小計&order={% if sort_by == '小計' and order == 'asc' %}desc{% else %}asc{% endif %}" class="text-decoration-none text-light">
+              小計 {% if sort_by == '小計' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}
+            </a>
+          </th>
+          <th>
+            <a href="{{ root_path }}/?sort_by=合計&order={% if sort_by == '合計' and order == 'asc' %}desc{% else %}asc{% endif %}" class="text-decoration-none text-light">
+              合計 {% if sort_by == '合計' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}
+            </a>
+          </th>
+          <th>
+            <a href="{{ root_path }}/?sort_by=品目の合計金額&order={% if sort_by == '品目の合計金額' and order == 'asc' %}desc{% else %}asc{% endif %}" class="text-decoration-none text-light">
+              品目の合計金額 {% if sort_by == '品目の合計金額' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}
+            </a>
+          </th>
         </tr>
       </thead>
       <tbody>
