@@ -7,7 +7,9 @@ import altair as alt
 import base64
 import re
 from uuid import uuid4
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request, UploadFile, File, Form
+
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -15,6 +17,9 @@ from azure.core.credentials import AzureKeyCredential
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
 from groq import Groq
+
+project_dir = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(os.path.dirname(project_dir), ".env"))
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
